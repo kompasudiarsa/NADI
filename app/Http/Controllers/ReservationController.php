@@ -2,18 +2,21 @@
 
 namespace App\Http\Controllers;
 
-use App\Services\ReservationApiService;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Http\Request;
 use Throwable;
 
 class ReservationController extends Controller
 {
-    public function index(
-        Request $request,
-        ReservationApiService $reservationApi
-    ) {
-       $sessionPatient = session('pasien', []);
+    public function index(Request $request)
+    {
+        $sessionPatient = session('pasien', []);
 
+        /*
+        |--------------------------------------------------------------------------
+        | Ambil data pasien dari request / session
+        |--------------------------------------------------------------------------
+        */
         $request->merge([
             'rm' => $request->input(
                 'rm',
@@ -26,6 +29,11 @@ class ReservationController extends Controller
             ),
         ]);
 
+        /*
+        |--------------------------------------------------------------------------
+        | Validasi
+        |--------------------------------------------------------------------------
+        */
         $validated = $request->validate([
             'rm' => [
                 'required',
@@ -48,112 +56,210 @@ class ReservationController extends Controller
             'Format tanggal lahir harus YYYY-MM-DD.',
         ]);
 
-        /*
-        |--------------------------------------------------------------------------
-        | Validasi session
-        |--------------------------------------------------------------------------
-        */
-
         if (
-            $validated['rm']=== '' ||
-            $validated['tanggal_lahir'] === ''
+            empty($validated['rm']) ||
+            empty($validated['tanggal_lahir'])
         ) {
             return redirect()
                 ->route('layanan.menu')
                 ->withErrors([
                     'validasi' =>
-                        'Data pasien tidak ditemukan. '
+                    'Data pasien tidak ditemukan. '
                         . 'Silakan masuk kembali ke SAPA RSBM.',
                 ]);
         }
 
-        try {
-            /*
-            |--------------------------------------------------------------------------
-            | Ambil reservasi dari API
-            |--------------------------------------------------------------------------
-            */
+        // try {
 
-            $result = $reservationApi->getHistory(
-                $validated['rm'],
-                $validated['tanggal_lahir']
+        /*
+        |--------------------------------------------------------------------------
+        | Konfigurasi API
+        |--------------------------------------------------------------------------
+        */
+        $baseUrl = rtrim(
+            env('API_BASE_URL', ''),
+            '/'
+        );
+
+        $token = (string) config(
+            'api_simrs.token'
+        );
+
+        $secret = env(
+            'API_SECRET',
+            ''
+        );
+
+        $timestamp = (string) time();
+
+
+        $params = [
+            'rm' => $validated['rm'],
+            'tglLahir' => $validated['tanggal_lahir'],
+        ];
+
+   
+
+        $queryString = http_build_query(
+            $params,
+            '',
+            '&',
+            PHP_QUERY_RFC3986
+        );
+
+        $canonicalUri =
+            '/api/service/getriwayatreservasi'
+            . '?'
+            . $queryString;
+
+
+        $bodyHash = hash(
+            'sha256',
+            ''
+        );
+
+
+        $payload = implode("\n", [
+            'GET',
+            $canonicalUri,
+            $timestamp,
+            $bodyHash,
+        ]);
+
+
+        $signature = hash_hmac(
+            'sha256',
+            $payload,
+            $secret
+        );
+
+    
+        $response = Http::withHeaders([
+            'X-Token' => $token,
+            'X-Timestamp' => $timestamp,
+            'X-Signature' => $signature,
+            'Accept' => 'application/json',
+        ])
+            ->timeout(30)
+            ->get(
+                $baseUrl . $canonicalUri
             );
 
-            /*
-            |--------------------------------------------------------------------------
-            | Normalisasi data
-            |--------------------------------------------------------------------------
-            */
 
-            $reservations = collect(
-                data_get($result, 'data', [])
-            )
-                ->sortByDesc(function ($item) {
-                    return data_get(
-                        $item,
-                        'tanggalreservasi',
-                        ''
-                    );
-                })
-                ->values();
+        if (! $response->successful()) {
 
-            $total = $reservations->count();
-
-            /*
-            |--------------------------------------------------------------------------
-            | Data pasien
-            |--------------------------------------------------------------------------
-            |
-            | Nama pasien dapat diambil dari hasil reservasi pertama.
-            |
-            */
-
-            $firstReservation = $reservations->first();
-
-            $patientInfo = [
-                'medical_record' => $validated['rm'],
-
-                'tanggal_lahir' => $validated['tanggal_lahir'],
-
-                'nama' => data_get(
-                    $firstReservation,
-                    'namapasien',
-                    data_get(
-                        $sessionPatient,
-                        'name',
-                        ''
-                    )
-                ),
-
-                'no_bpjs' => data_get(
-                    $firstReservation,
-                    'nobpjs',
-                    ''
-                ),
-
-                'jenis_kelamin' => data_get(
-                    $firstReservation,
-                    'jeniskelamin',
-                    ''
-                ),
-            ];
-
-            return view(
-                'reservation.index',
-                compact(
-                    'reservations',
-                    'total',
-                    'patientInfo'
-                )
+            $message = data_get(
+                $response->json(),
+                'message',
+                'API riwayat reservasi gagal diakses.'
             );
-        } catch (Throwable $e) {
-            report($e);
 
-            return redirect()
-                ->route('layanan.menu')
-                ->withErrors([
-                    'validasi' => $e->getMessage(),
-                ]);
+            throw new \RuntimeException(
+                $message
+                    . ' HTTP Status: '
+                    . $response->status()
+            );
         }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Decode Response
+        |--------------------------------------------------------------------------
+        */
+
+        $result = $response->json();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Normalisasi Data Reservasi
+        |--------------------------------------------------------------------------
+        */
+
+        $reservations = collect(
+            data_get($result, 'data', [])
+        )
+            ->sortByDesc(function ($item) {
+                return data_get(
+                    $item,
+                    'tanggalreservasi',
+                    ''
+                );
+            })
+            ->values();
+
+        $total = $reservations->count();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Data Pasien
+        |--------------------------------------------------------------------------
+        */
+
+        $firstReservation = $reservations->first();
+
+        $patientInfo = [
+            'medical_record' =>
+            $validated['rm'],
+
+            'tanggal_lahir' =>
+            $validated['tanggal_lahir'],
+
+            'nama' => data_get(
+                $firstReservation,
+                'namapasien',
+                data_get(
+                    $sessionPatient,
+                    'name',
+                    ''
+                )
+            ),
+
+            'no_bpjs' => data_get(
+                $firstReservation,
+                'nobpjs',
+                data_get(
+                    $sessionPatient,
+                    'bpjs_number',
+                    ''
+                )
+            ),
+
+            'jenis_kelamin' => data_get(
+                $firstReservation,
+                'jeniskelamin',
+                data_get(
+                    $sessionPatient,
+                    'gender',
+                    ''
+                )
+            ),
+        ];
+
+        /*
+        |--------------------------------------------------------------------------
+        | Return View
+        |--------------------------------------------------------------------------
+        */
+
+        return view(
+            'reservation.index',
+            compact(
+                'reservations',
+                'total',
+                'patientInfo'
+            )
+        );
+        // } catch (Throwable $e) {
+
+        //     report($e);
+
+        //     return redirect()
+        //         ->route('layanan.menu')
+        //         ->withErrors([
+        //             'validasi' =>
+        //             'Gagal mengambil riwayat reservasi. '
+        //                 . $e->getMessage(),
+        //         ]);
+        // }
     }
 }

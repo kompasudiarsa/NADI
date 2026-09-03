@@ -16,6 +16,12 @@ use App\Http\Controllers\ReservationController;
 //     '/cek-hasil-laboratorium',
 //     [LaboratoryController::class, 'check']
 // )->name('laboratory.check');
+use App\Http\Controllers\VideoEdukasiController;
+
+Route::get(
+    '/video-edukasi',
+    [VideoEdukasiController::class, 'index']
+)->name('video-edukasi.index');
 Route::get(
     '/layanan/cek-reservasi',
     [ReservationController::class, 'index']

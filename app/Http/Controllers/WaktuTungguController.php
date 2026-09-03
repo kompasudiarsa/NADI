@@ -777,10 +777,41 @@ class WaktuTungguController extends Controller
     }
     public function logout(Request $request)
 {
+    /*
+    |--------------------------------------------------------------------------
+    | Hapus Data Pasien
+    |--------------------------------------------------------------------------
+    */
+
     $request->session()->forget('pasien');
+
+    /*
+    |--------------------------------------------------------------------------
+    | Hapus Session Lama
+    |--------------------------------------------------------------------------
+    */
+
     $request->session()->invalidate();
+
+    /*
+    |--------------------------------------------------------------------------
+    | Generate CSRF Token Baru
+    |--------------------------------------------------------------------------
+    */
+
     $request->session()->regenerateToken();
 
-    return redirect()->route('/')->with('success', 'Anda telah berhasil keluar dari sesi pasien.');
+    /*
+    |--------------------------------------------------------------------------
+    | Kembali ke Halaman Utama
+    |--------------------------------------------------------------------------
+    */
+
+    return redirect()
+        ->route('queue.home')
+        ->with(
+            'success',
+            'Anda telah berhasil keluar dari sesi pasien.'
+        );
 }
 }

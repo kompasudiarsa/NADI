@@ -1,11 +1,11 @@
-@extends('layouts.app', ['title' => 'SAPA RSBM | RSUD Bali Mandara Provinsi Bali'])
+@extends('layouts.app', ['title' => 'NADI RSBM | RSUD Bali Mandara Provinsi Bali'])
 
 @push('head')
 <meta name="theme-color" content="#26358f">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="SAPA RSBM">
+<meta name="apple-mobile-web-app-title" content="NADI RSBM">
 <link rel="manifest" href="{{ asset('manifest.webmanifest') }}">
 <link rel="apple-touch-icon" href="{{ asset('images/pwa/apple-touch-icon.png') }}">
 @endpush
@@ -799,20 +799,20 @@ $tanggalLahirDisplay = $oldTanggalLahir;
 
                 <div class="eyebrow">
                     <span class="eyebrow-dot"></span>
-                    SAPA RSBM
+                    NADI RSBM
                 </div>
 
                 <h1 class="sapa-title">
-                    <span>Satu Akses</span><br>
-                    Pelayanan Pasien
+                    <span>NADI RSBM</span><br>
+                    Navigasi Akses Digital Informasi Pasien
                 </h1>
 
                 <p class="sapa-lead">
-                    <strong>SAPA RSBM</strong> adalah
-                    <strong>Satu Akses Pelayanan Pasien</strong>
-                    RSUD Bali Mandara yang memudahkan pasien mengakses
-                    layanan digital rumah sakit secara cepat, aman,
-                    dan terintegrasi.
+                    <strong>NADI RSBM</strong> adalah
+                    <strong>Navigasi Akses Digital Informasi Pasien</strong>
+                    dengan konsep <strong>Satu Akses Pelayanan Pasien RSUD Bali Mandara</strong>
+                    yang memudahkan pasien mengakses layanan digital rumah sakit
+                    secara cepat, aman, dan terintegrasi.
                 </p>
 
 
@@ -859,9 +859,9 @@ $tanggalLahirDisplay = $oldTanggalLahir;
 
                     <div>
                         <div class="card-kicker">
-                            Satu Akses Pelayanan Pasien
+                            Navigasi Akses Digital Informasi Pasien
                         </div>
-                        <h2>Masuk ke SAPA RSBM</h2>
+                        <h2>Masuk ke NADI RSBM</h2>
                         <p>
                             Gunakan identitas pasien yang terdaftar
                             di RSUD Bali Mandara.
@@ -1012,7 +1012,7 @@ $tanggalLahirDisplay = $oldTanggalLahir;
                         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                             <path d="M5 12H19M14 7L19 12L14 17" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
                         </svg>
-                        <span>Masuk ke SAPA RSBM</span>
+                        <span>Masuk ke NADI RSBM</span>
                     </button>
 
                     <div class="secure-note">
@@ -1231,7 +1231,7 @@ $tanggalLahirDisplay = $oldTanggalLahir;
             }
 
             submitButton.disabled = true;
-            submitButton.querySelector('span').textContent = 'Mengakses SAPA RSBM...';
+            submitButton.querySelector('span').textContent = 'Mengakses NADI RSBM...';
         });
 
         // ---------------------------------------------------------
