@@ -62,6 +62,64 @@ $menus = [
     'icon' => 'doctor-calendar',
 ],
 ];
+
+$logoutRouteName = null;
+
+if (Route::has('layanan.logout')) {
+    $logoutRouteName = 'layanan.logout';
+} elseif (Route::has('logout')) {
+    $logoutRouteName = 'logout';
+}
+
+/*
+|--------------------------------------------------------------------------
+| Data pasien aktif
+|--------------------------------------------------------------------------
+*/
+$patient = session('pasien', []);
+
+$patientName = data_get(
+    $patient,
+    'name',
+    data_get(
+        $patient,
+        'namapasien',
+        '-'
+    )
+);
+
+$medicalRecord = data_get(
+    $patient,
+    'medical_record',
+    data_get(
+        $patient,
+        'rm',
+        data_get(
+            $patient,
+            'nocm',
+            '-'
+        )
+    )
+);
+
+$birthDate = data_get(
+    $patient,
+    'birth_date',
+    data_get(
+        $patient,
+        'tanggal_lahir',
+        data_get(
+            $patient,
+            'tgllahir'
+        )
+    )
+);
+
+$patientId = data_get(
+    $patient,
+    'patient_id',
+    null
+);
 @endphp
 
 <style>
@@ -220,6 +278,53 @@ $menus = [
         box-shadow: 0 0 0 4px rgba(25, 200, 61, .11);
     }
 
+    .service-brand-actions {
+        display: flex;
+        flex: 0 0 auto;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .service-logout-form {
+        margin: 0;
+    }
+
+    .service-logout-button {
+        display: inline-flex;
+        min-height: 36px;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        padding: 0 11px;
+        border: 1px solid #fecaca;
+        border-radius: 10px;
+        background: #fff;
+        color: #b91c1c;
+        font-family: inherit;
+        font-size: 10px;
+        font-weight: 900;
+        line-height: 1;
+        cursor: pointer;
+        white-space: nowrap;
+        transition:
+            transform .18s ease,
+            background .18s ease,
+            border-color .18s ease,
+            box-shadow .18s ease;
+    }
+
+    .service-logout-button:hover {
+        transform: translateY(-1px);
+        border-color: #fca5a5;
+        background: #fef2f2;
+        color: #991b1b;
+        box-shadow: 0 7px 16px rgba(185, 28, 28, .08);
+    }
+
+    .service-logout-button svg {
+        flex: 0 0 auto;
+    }
+
     .service-heading {
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto;
@@ -267,6 +372,70 @@ $menus = [
 
     .service-summary svg {
         color: var(--rsbm-green-dark);
+    }
+
+    .patient-check-card {
+        display: grid;
+        grid-template-columns:
+            minmax(0, 1.5fr)
+            minmax(180px, .8fr);
+        gap: 0;
+        margin-bottom: 16px;
+        overflow: hidden;
+        border: 1px solid rgba(38, 53, 143, .11);
+        border-radius: 16px;
+        background: rgba(255, 255, 255, .96);
+        box-shadow: 0 10px 26px rgba(28, 39, 90, .055);
+    }
+
+    .patient-check-item {
+        min-width: 0;
+        padding: 14px 16px;
+    }
+
+    .patient-check-item + .patient-check-item {
+        border-left: 1px solid var(--rsbm-line);
+    }
+
+    .patient-check-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 4px;
+        color: #8a95a6;
+        font-size: 9px;
+        font-weight: 900;
+        letter-spacing: .055em;
+        text-transform: uppercase;
+    }
+
+    .patient-check-label svg {
+        flex: 0 0 auto;
+        color: var(--rsbm-blue);
+    }
+
+    .patient-check-value {
+        overflow-wrap: anywhere;
+        color: var(--rsbm-text);
+        font-size: 13px;
+        font-weight: 900;
+        line-height: 1.45;
+    }
+
+    .patient-check-card-title {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        margin-bottom: 8px;
+        color: var(--rsbm-blue-dark);
+        font-size: 10px;
+        font-weight: 900;
+        letter-spacing: .05em;
+        text-transform: uppercase;
+    }
+
+    .patient-check-wrapper {
+        margin-bottom: 16px;
     }
 
     .service-grid {
@@ -530,6 +699,10 @@ $menus = [
             width: fit-content;
         }
 
+        .patient-check-card {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
         .service-grid {
             grid-template-columns: 1fr;
         }
@@ -565,8 +738,46 @@ $menus = [
             display: none;
         }
 
+        .service-brand-actions {
+            gap: 6px;
+        }
+
+        .service-logout-button {
+            min-height: 35px;
+            padding: 0 10px;
+        }
+
+        .service-logout-label-long {
+            display: none;
+        }
+
         .service-heading {
             margin-bottom: 14px;
+        }
+
+        .patient-check-wrapper {
+            margin-bottom: 14px;
+        }
+
+        .patient-check-card {
+            grid-template-columns: minmax(0, 1.3fr) minmax(110px, .7fr);
+        }
+
+        .patient-check-item {
+            padding: 11px 12px;
+        }
+
+        .patient-check-item + .patient-check-item {
+            border-top: 0;
+            border-left: 1px solid var(--rsbm-line);
+        }
+
+        .patient-check-label {
+            font-size: 8px;
+        }
+
+        .patient-check-value {
+            font-size: 11.5px;
         }
 
         .service-heading h1 {
@@ -643,9 +854,54 @@ $menus = [
                 </div>
             </div>
 
-            <div class="service-badge">
-                <span class="service-badge-dot"></span>
-                NADI RSBM
+            <div class="service-brand-actions">
+                <div class="service-badge">
+                    <span class="service-badge-dot"></span>
+                    NADI RSBM
+                </div>
+
+                @if($logoutRouteName)
+                    <form
+                        method="POST"
+                        action="{{ route($logoutRouteName) }}"
+                        class="service-logout-form"
+                    >
+                        @csrf
+
+                        <button
+                            type="submit"
+                            class="service-logout-button"
+                            aria-label="Logout dari NADI RSBM"
+                            title="Logout"
+                        >
+                            <svg
+                                width="15"
+                                height="15"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                aria-hidden="true"
+                            >
+                                <path
+                                    d="M10 5H6C4.9 5 4 5.9 4 7V17C4 18.1 4.9 19 6 19H10"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                />
+                                <path
+                                    d="M14 8L18 12L14 16M18 12H9"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                />
+                            </svg>
+
+                            <span class="service-logout-label-long">
+                                Logout
+                            </span>
+                        </button>
+                    </form>
+                @endif
             </div>
         </div>
 
@@ -665,6 +921,100 @@ $menus = [
                     <path d="M9 12L11 14L15.5 9.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
                 </svg>
                 Data pasien telah terverifikasi
+            </div>
+        </div>
+
+        <div class="patient-check-wrapper">
+            <div class="patient-check-card-title">
+                <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    aria-hidden="true"
+                >
+                    <circle
+                        cx="12"
+                        cy="8"
+                        r="4"
+                        stroke="currentColor"
+                        stroke-width="2"
+                    />
+                    <path
+                        d="M5 20C5.8 15.8 8.1 14 12 14C15.9 14 18.2 15.8 19 20"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                    />
+                </svg>
+                Data pasien yang sedang dicek
+            </div>
+
+            <div class="patient-check-card">
+                <div class="patient-check-item">
+                    <div class="patient-check-label">
+                        <svg
+                            width="13"
+                            height="13"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            aria-hidden="true"
+                        >
+                            <circle
+                                cx="12"
+                                cy="8"
+                                r="3.5"
+                                stroke="currentColor"
+                                stroke-width="2"
+                            />
+                            <path
+                                d="M6 20C6.6 16.4 8.6 14.5 12 14.5C15.4 14.5 17.4 16.4 18 20"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                            />
+                        </svg>
+                        Nama Pasien
+                    </div>
+
+                    <div class="patient-check-value">
+                        {{ $patientName ?: '-' }}
+                    </div>
+                </div>
+
+                <div class="patient-check-item">
+                    <div class="patient-check-label">
+                        <svg
+                            width="13"
+                            height="13"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            aria-hidden="true"
+                        >
+                            <rect
+                                x="4"
+                                y="5"
+                                width="16"
+                                height="14"
+                                rx="2"
+                                stroke="currentColor"
+                                stroke-width="2"
+                            />
+                            <path
+                                d="M8 9H16M8 13H13"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                            />
+                        </svg>
+                        Nomor Rekam Medis
+                    </div>
+
+                    <div class="patient-check-value">
+                        {{ $medicalRecord ?: '-' }}
+                    </div>
+                </div>
+
             </div>
         </div>
 

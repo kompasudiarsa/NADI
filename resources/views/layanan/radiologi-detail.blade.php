@@ -1,4 +1,4 @@
-@extends('layouts.app', ['title' => 'Detail Hasil Radiologi | SAPA RSBM'])
+@extends('layouts.app', ['title' => 'Detail Hasil Radiologi | NADI RSBM'])
 
 @section('content')
 

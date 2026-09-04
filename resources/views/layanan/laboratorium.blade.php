@@ -1,4 +1,4 @@
-@extends('layouts.app', ['title' => 'Laboratorium | SAPA RSBM'])
+@extends('layouts.app', ['title' => 'Laboratorium | NADI RSBM'])
 
 @section('content')
 <style>
@@ -700,6 +700,15 @@
     text-decoration: none;
 }
 
+.btn-detail.is-disabled {
+    border-color: #e2e8f0;
+    background: #f8fafc;
+    color: #94a3b8;
+    cursor: not-allowed;
+    pointer-events: none;
+    box-shadow: none;
+}
+
 @media (max-width: 640px) {
     .order-header-actions {
         width: 100%;
@@ -959,14 +968,24 @@
     }
 
     .filter-grid {
-        grid-template-columns: minmax(250px, 1.55fr) minmax(160px, .7fr) minmax(135px, .55fr) auto;
+        grid-template-columns:
+            minmax(250px, 1.55fr)
+            minmax(160px, .7fr)
+            minmax(135px, .55fr);
         gap: 10px;
     }
 
     .filter-actions {
-        grid-column: auto;
-        padding-top: 0;
+        grid-column: 1 / -1;
+        width: 100%;
+        padding-top: 2px;
         justify-content: flex-end;
+        flex-wrap: wrap;
+    }
+
+    .filter-actions .btn-primary,
+    .filter-actions .btn-secondary {
+        flex: 0 0 auto;
     }
 
     .form-label {
@@ -1179,7 +1198,15 @@
 
         .filter-actions {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            width: 100%;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+        .filter-actions .btn-primary,
+        .filter-actions .btn-secondary {
+            width: 100%;
+            min-width: 0;
         }
 
         .order-header,
@@ -1486,15 +1513,46 @@
             ) }}
         </span>
 
-       <a
-    href="{{ route('laboratory.detail', [
-        'noOrder' => data_get($order, 'order_number'),
-        'lab' => data_get($order, 'destination_room')
-    ]) }}"
-    class="btn-detail"
->
-    Lihat Detail
-</a>
+        @php
+            $detailNoOrder = trim(
+                (string) data_get(
+                    $order,
+                    'order_number',
+                    ''
+                )
+            );
+
+            $detailLab = trim(
+                (string) data_get(
+                    $order,
+                    'destination_room',
+                    ''
+                )
+            );
+
+            $canViewDetail =
+                $detailNoOrder !== ''
+                && $detailLab !== '';
+        @endphp
+
+        @if($canViewDetail)
+            <a
+                href="{{ route('laboratory.detail', [
+                    'noOrder' => $detailNoOrder,
+                    'lab' => $detailLab,
+                ]) }}"
+                class="btn-detail"
+            >
+                Lihat Detail
+            </a>
+        @else
+            <span
+                class="btn-detail is-disabled"
+                title="Nomor order hasil laboratorium belum tersedia"
+            >
+                Belum Tersedia
+            </span>
+        @endif
     </div>
 </div>
 

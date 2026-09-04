@@ -252,7 +252,7 @@ class LayananController extends Controller
                 'query' => $request->query(),
             ]
         );
-
+// dd($orders);
         return view(
             'layanan.laboratorium',
             compact(

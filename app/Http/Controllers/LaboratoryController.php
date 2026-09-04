@@ -41,7 +41,7 @@ class LaboratoryController extends Controller
      public function detailhasil(string $noOrder, string $lab)
     {
         $noOrder = strtoupper(trim($noOrder));
-$lab = strtoupper(trim($lab));
+        $lab = strtoupper(trim($lab));
         $result = $this->laboratory->getHasil($noOrder);
 
         return view('layanan.laboratorium_detail', [
