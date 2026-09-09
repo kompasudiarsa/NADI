@@ -424,6 +424,126 @@
         }
 
 
+
+        /*
+        |--------------------------------------------------------------------------
+        | Daftar Isi Video
+        |--------------------------------------------------------------------------
+        */
+
+        .video-toc {
+            background: white;
+            border-radius: 16px;
+            padding: 18px;
+            box-shadow:
+                0 6px 25px
+                rgba(
+                    0,
+                    0,
+                    0,
+                    .05
+                );
+            border:
+                1px solid
+                #edf0ef;
+            margin-bottom: 24px;
+        }
+
+        .video-toc-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+
+        .video-toc-title {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 700;
+            color: #212529;
+        }
+
+        .video-toc-count {
+            color: #087f5b;
+            background: #e6fcf5;
+            border-radius: 30px;
+            padding: 5px 10px;
+            font-size: 12px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .video-toc-list {
+            margin: 0;
+            padding: 0;
+            list-style: none;
+            display: grid;
+            grid-template-columns:
+                repeat(
+                    2,
+                    minmax(
+                        0,
+                        1fr
+                    )
+                );
+            gap: 9px;
+        }
+
+        .video-toc-item {
+            min-width: 0;
+        }
+
+        .video-toc-link {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            color: #343a40;
+            text-decoration: none;
+            background: #f8faf9;
+            border: 1px solid #edf0ef;
+            transition:
+                background .2s ease,
+                border-color .2s ease,
+                transform .2s ease;
+        }
+
+        .video-toc-link:hover {
+            background: #e6fcf5;
+            border-color: #b2f2bb;
+            transform:
+                translateY(-1px);
+        }
+
+        .video-toc-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 28px;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: #087f5b;
+            color: white;
+            font-size: 12px;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .video-toc-name {
+            min-width: 0;
+            font-size: 13px;
+            line-height: 1.45;
+            font-weight: 600;
+            padding-top: 4px;
+        }
+
+        .video-card {
+            scroll-margin-top: 24px;
+        }
+
         /*
         |--------------------------------------------------------------------------
         | Summary
@@ -988,6 +1108,12 @@
                     1fr;
             }
 
+
+            .video-toc-list {
+                grid-template-columns:
+                    1fr;
+            }
+
             .summary-title {
                 font-size:
                     16px;
@@ -1224,6 +1350,76 @@
 
 
 
+
+        {{-- ========================================================= --}}
+        {{-- DAFTAR ISI VIDEO                                         --}}
+        {{-- ========================================================= --}}
+
+        @if(
+            isset($videos)
+            &&
+            $videos->count() > 0
+        )
+
+            <section class="video-toc">
+
+                <div class="video-toc-header">
+
+                    <h2 class="video-toc-title">
+                        📑 Daftar Isi Video
+                    </h2>
+
+                    <span class="video-toc-count">
+                        {{
+                            $videos->count()
+                        }}
+                        video
+                    </span>
+
+                </div>
+
+                <ol class="video-toc-list">
+
+                    @foreach(
+                        $videos
+                        as
+                        $index => $video
+                    )
+
+                        <li class="video-toc-item">
+
+                            <a
+                                href="#video-{{ $index + 1 }}"
+                                class="video-toc-link"
+                            >
+
+                                <span class="video-toc-number">
+                                    {{ $index + 1 }}
+                                </span>
+
+                                <span class="video-toc-name">
+                                    {{
+                                        $video[
+                                            'namaeduboard'
+                                        ]
+                                        ??
+                                        'Video Edukasi'
+                                    }}
+                                </span>
+
+                            </a>
+
+                        </li>
+
+                    @endforeach
+
+                </ol>
+
+            </section>
+
+        @endif
+
+
         {{-- ========================================================= --}}
         {{-- SUMMARY                                                   --}}
         {{-- ========================================================= --}}
@@ -1268,11 +1464,14 @@
                 @foreach(
                     $videos
                     as
-                    $video
+                    $index => $video
                 )
 
 
-                    <article class="video-card">
+                    <article
+                        id="video-{{ $index + 1 }}"
+                        class="video-card"
+                    >
 
 
                         {{-- ========================================= --}}

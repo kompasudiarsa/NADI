@@ -40,22 +40,22 @@ class WaktuTungguController extends Controller
             ],
         ], [
             'rm.required' =>
-            'Nomor rekam medis wajib diisi.',
+                'Nomor rekam medis wajib diisi.',
 
             'tanggal_lahir.required' =>
-            'Tanggal lahir wajib diisi.',
+                'Tanggal lahir wajib diisi.',
 
             'tanggal_lahir.date_format' =>
-            'Format tanggal lahir tidak valid.',
+                'Format tanggal lahir tidak valid.',
 
             'captcha.required' =>
-            'Verifikasi keamanan wajib diisi.',
+                'Verifikasi keamanan wajib diisi.',
 
             'captcha.integer' =>
-            'Jawaban verifikasi harus berupa angka.',
+                'Jawaban verifikasi harus berupa angka.',
 
             'captcha_token.required' =>
-            'Verifikasi keamanan tidak valid. Silakan muat ulang halaman.',
+                'Verifikasi keamanan tidak valid. Silakan muat ulang halaman.',
         ]);
 
         /*
@@ -63,33 +63,31 @@ class WaktuTungguController extends Controller
         | Validasi CAPTCHA
         |--------------------------------------------------------------------------
         */
+        try {
+            $decrypted = Crypt::decryptString(
+                $validated['captcha_token']
+            );
 
-            try {
-                $decrypted = Crypt::decryptString(
-                    $validated['captcha_token']
+            $captchaData = json_decode(
+                $decrypted,
+                true
+            );
+
+            if (
+                ! is_array($captchaData) ||
+                ! isset($captchaData['answer']) ||
+                ! isset($captchaData['issued_at'])
+            ) {
+                throw new \RuntimeException(
+                    'Captcha tidak valid.'
                 );
-
-                $captchaData = json_decode(
-                    $decrypted,
-                    true
-                );
-
-                if (
-                    ! is_array($captchaData) ||
-                    ! isset($captchaData['answer']) ||
-                    ! isset($captchaData['issued_at'])
-                ) {
-                    throw new \RuntimeException(
-                        'Captcha tidak valid.'
-                    );
-                }
+            }
 
             /*
-        |--------------------------------------------------------------------------
-        | CAPTCHA berlaku maksimal 10 menit
-        |--------------------------------------------------------------------------
-        */
-
+            |--------------------------------------------------------------------------
+            | CAPTCHA berlaku maksimal 10 menit
+            |--------------------------------------------------------------------------
+            */
             $captchaAge =
                 time() - (int) $captchaData['issued_at'];
 
@@ -106,16 +104,15 @@ class WaktuTungguController extends Controller
                     )
                     ->withErrors([
                         'captcha' =>
-                        'Verifikasi keamanan telah kedaluwarsa. Silakan coba kembali.',
+                            'Verifikasi keamanan telah kedaluwarsa. Silakan coba kembali.',
                     ]);
             }
 
             /*
             |--------------------------------------------------------------------------
-            | Bandingkan Jawaban
+            | Bandingkan Jawaban CAPTCHA
             |--------------------------------------------------------------------------
             */
-
             $expectedAnswer =
                 (int) $captchaData['answer'];
 
@@ -132,7 +129,7 @@ class WaktuTungguController extends Controller
                     )
                     ->withErrors([
                         'captcha' =>
-                        'Jawaban verifikasi keamanan tidak sesuai.',
+                            'Jawaban verifikasi keamanan tidak sesuai.',
                     ]);
             }
         } catch (Throwable $e) {
@@ -145,27 +142,19 @@ class WaktuTungguController extends Controller
                 )
                 ->withErrors([
                     'captcha' =>
-                    'Verifikasi keamanan tidak valid atau telah kedaluwarsa. Silakan coba kembali.',
+                        'Verifikasi keamanan tidak valid atau telah kedaluwarsa. Silakan coba kembali.',
                 ]);
         }
 
         /*
         |--------------------------------------------------------------------------
-        | CAPTCHA BENAR
-        | Baru lanjut cek pasien
+        | Cek Data Pasien
         |--------------------------------------------------------------------------
         */
-
         $result = $apiService->getPatient(
             $validated['rm'],
             $validated['tanggal_lahir']
         );
-
-        /*
-        |--------------------------------------------------------------------------
-        | Pasien Tidak Ditemukan
-        |--------------------------------------------------------------------------
-        */
 
         if (! data_get($result, 'found')) {
             return back()
@@ -189,7 +178,6 @@ class WaktuTungguController extends Controller
         | Ambil Data Pasien
         |--------------------------------------------------------------------------
         */
-
         $patient = data_get(
             $result,
             'patient',
@@ -198,24 +186,99 @@ class WaktuTungguController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | Simpan Session Pasien
+        | Pastikan identitas utama tetap tersedia di session
         |--------------------------------------------------------------------------
         */
+        $patient['medical_record'] =
+            data_get(
+                $patient,
+                'medical_record',
+                $validated['rm']
+            );
 
-        session([
-            'pasien' => $patient,
-        ]);
+        $patient['birth_date'] =
+            data_get(
+                $patient,
+                'birth_date',
+                $validated['tanggal_lahir']
+            );
 
         /*
         |--------------------------------------------------------------------------
-        | Redirect
+        | Ambil Kontrol / Reservasi Berikutnya
+        |--------------------------------------------------------------------------
+        |
+        | Kegagalan API reservasi tidak menggagalkan proses masuk.
+        |
+        */
+        try {
+            $reservationResult =
+                $apiService->getRiwayatReservasi(
+                    $validated['rm'],
+                    $validated['tanggal_lahir']
+                );
+
+            if (
+                data_get(
+                    $reservationResult,
+                    'is_error',
+                    false
+                )
+            ) {
+                logger()->warning(
+                    'API riwayat reservasi gagal saat pasien masuk.',
+                    [
+                        'rm' => $validated['rm'],
+                        'message' => data_get(
+                            $reservationResult,
+                            'message'
+                        ),
+                        'http_status' => data_get(
+                            $reservationResult,
+                            'http_status'
+                        ),
+                    ]
+                );
+
+                $patient['next_appointment'] = null;
+                $patient['reservation_raw'] = null;
+            } else {
+                $reservation = data_get(
+                    $reservationResult,
+                    'data.0'
+                );
+
+                $patient['next_appointment'] =
+                    $this->normalizeNextAppointment(
+                        $reservation
+                    );
+
+                $patient['reservation_raw'] =
+                    is_array($reservation)
+                        ? $reservation
+                        : null;
+            }
+        } catch (Throwable $e) {
+            report($e);
+
+            $patient['next_appointment'] = null;
+            $patient['reservation_raw'] = null;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Simpan Session Pasien
         |--------------------------------------------------------------------------
         */
+        session([
+            'pasien' => $patient,
+        ]);
 
         return redirect()->route(
             'layanan.menu'
         );
     }
+
     private function generateCaptcha(): array
     {
         $angka1 = random_int(1, 9);
@@ -239,38 +302,497 @@ class WaktuTungguController extends Controller
      * Menampilkan halaman menu utama pelayanan pasien.
      */
 
-    public function menu()
-    {
-        $rm = session('pasien.medical_record');
-        $tanggalLahir = session('pasien.birth_date');
+    /**
+     * Menampilkan halaman menu utama pelayanan pasien.
+     *
+     * Setiap halaman /menu dibuka atau browser di-refresh, data kontrol
+     * berikutnya diminta kembali ke API agar tidak hanya mengandalkan
+     * session saat login.
+     */
+    public function menu(
+        Request $request,
+        PoliWaitingApiService $apiService
+    ) {
+        $patient = session(
+            'pasien',
+            []
+        );
 
-        if (empty($rm) || empty($tanggalLahir)) {
-            return redirect('/')
+        [
+            $medicalRecord,
+            $birthDate,
+        ] = $this->getPatientSessionIdentity(
+            $patient
+        );
+
+        if (
+            $medicalRecord === '' ||
+            $birthDate === ''
+        ) {
+            return redirect()
+                ->route('queue.home')
                 ->withErrors([
                     'validasi' =>
-                    'Silakan masukkan nomor rekam medis dan tanggal lahir terlebih dahulu.',
+                        'Silakan masuk kembali menggunakan nomor rekam medis dan tanggal lahir.',
                 ]);
         }
 
-        return view('layanan.menu', [
-            'rm' => $rm,
-            'tanggalLahir' => $tanggalLahir,
-            'pasien' => session('pasien'),
-        ]);
+        /*
+        |--------------------------------------------------------------------------
+        | Fallback dari session
+        |--------------------------------------------------------------------------
+        |
+        | Jika API sedang bermasalah, kontrol terakhir yang berhasil
+        | disimpan tetap dapat ditampilkan.
+        |
+        */
+        $nextAppointment = data_get(
+            $patient,
+            'next_appointment'
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Refresh Kontrol Berikutnya Saat Halaman Dibuka / F5
+        |--------------------------------------------------------------------------
+        */
+        try {
+            $reservationResult =
+                $apiService->getRiwayatReservasi(
+                    $medicalRecord,
+                    $birthDate
+                );
+
+            if (
+                data_get(
+                    $reservationResult,
+                    'is_error',
+                    false
+                )
+            ) {
+                logger()->warning(
+                    'API riwayat reservasi gagal saat membuka menu.',
+                    [
+                        'rm' => $medicalRecord,
+                        'message' => data_get(
+                            $reservationResult,
+                            'message'
+                        ),
+                        'http_status' => data_get(
+                            $reservationResult,
+                            'http_status'
+                        ),
+                    ]
+                );
+            } else {
+                $reservation = data_get(
+                    $reservationResult,
+                    'data.0'
+                );
+
+                /*
+                |--------------------------------------------------------------------------
+                | Jika API berhasil tetapi total = 0, kontrol memang tidak ada.
+                |--------------------------------------------------------------------------
+                */
+                $nextAppointment =
+                    $this->normalizeNextAppointment(
+                        $reservation
+                    );
+
+                $patient['next_appointment'] =
+                    $nextAppointment;
+
+                $patient['reservation_raw'] =
+                    is_array($reservation)
+                        ? $reservation
+                        : null;
+
+                session([
+                    'pasien' => $patient,
+                ]);
+            }
+        } catch (Throwable $e) {
+            /*
+            |--------------------------------------------------------------------------
+            | Jangan gagalkan halaman menu
+            |--------------------------------------------------------------------------
+            */
+            report($e);
+        }
+
+        return view(
+            'layanan.menu',
+            [
+                'nextAppointment' =>
+                    $nextAppointment,
+            ]
+        );
+    }
+
+    /**
+     * Endpoint AJAX untuk memperbarui "Kontrol Berikutnya" tanpa reload
+     * seluruh halaman.
+     */
+    public function refreshKontrolBerikutnya(
+        Request $request,
+        PoliWaitingApiService $apiService
+    ) {
+        $patient = session(
+            'pasien',
+            []
+        );
+
+        [
+            $medicalRecord,
+            $birthDate,
+        ] = $this->getPatientSessionIdentity(
+            $patient
+        );
+
+        if (
+            $medicalRecord === '' ||
+            $birthDate === ''
+        ) {
+            return response()->json([
+                'success' => false,
+                'message' =>
+                    'Session pasien tidak tersedia.',
+            ], 401);
+        }
+
+        try {
+            $result =
+                $apiService->getRiwayatReservasi(
+                    $medicalRecord,
+                    $birthDate
+                );
+
+            if (
+                data_get(
+                    $result,
+                    'is_error',
+                    false
+                )
+            ) {
+                logger()->warning(
+                    'API riwayat reservasi gagal saat auto refresh.',
+                    [
+                        'rm' => $medicalRecord,
+                        'message' => data_get(
+                            $result,
+                            'message'
+                        ),
+                        'http_status' => data_get(
+                            $result,
+                            'http_status'
+                        ),
+                    ]
+                );
+
+                return response()->json([
+                    'success' => false,
+                    'message' => data_get(
+                        $result,
+                        'message',
+                        'Data kontrol gagal diperbarui.'
+                    ),
+                ], 502);
+            }
+
+            $reservation = data_get(
+                $result,
+                'data.0'
+            );
+
+            $appointment =
+                $this->normalizeNextAppointment(
+                    $reservation
+                );
+
+            /*
+            |--------------------------------------------------------------------------
+            | Update Session
+            |--------------------------------------------------------------------------
+            */
+            $patient['next_appointment'] =
+                $appointment;
+
+            $patient['reservation_raw'] =
+                is_array($reservation)
+                    ? $reservation
+                    : null;
+
+            session([
+                'pasien' => $patient,
+            ]);
+
+            return response()->json([
+                'success' => true,
+
+                /*
+                | true  = ada kontrol berikutnya
+                | false = API berhasil, tetapi tidak ada kontrol
+                */
+                'has_appointment' =>
+                    $appointment !== null,
+
+                'data' =>
+                    $appointment,
+
+                'refreshed_at' =>
+                    now()->format(
+                        'Y-m-d H:i:s'
+                    ),
+            ]);
+        } catch (Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'success' => false,
+                'message' =>
+                    'Data kontrol berikutnya gagal diperbarui.',
+            ], 500);
+        }
+    }
+
+    /**
+     * Mengambil RM dan tanggal lahir dari session pasien.
+     */
+    private function getPatientSessionIdentity(
+        array $patient
+    ): array {
+        $medicalRecord = trim(
+            (string) data_get(
+                $patient,
+                'medical_record',
+                data_get(
+                    $patient,
+                    'rm',
+                    data_get(
+                        $patient,
+                        'nocm',
+                        ''
+                    )
+                )
+            )
+        );
+
+        $birthDate = trim(
+            (string) data_get(
+                $patient,
+                'birth_date',
+                data_get(
+                    $patient,
+                    'tanggal_lahir',
+                    data_get(
+                        $patient,
+                        'tgllahir',
+                        ''
+                    )
+                )
+            )
+        );
+
+        return [
+            $medicalRecord,
+            $birthDate,
+        ];
+    }
+
+    /**
+     * Menyamakan field response API reservasi dengan field yang digunakan
+     * oleh Blade menu NADI.
+     */
+    private function normalizeNextAppointment(
+        $reservation
+    ): ?array {
+        if (
+            ! is_array($reservation) ||
+            empty($reservation)
+        ) {
+            return null;
+        }
+
+        return [
+            /*
+            |--------------------------------------------------------------------------
+            | Identitas Reservasi
+            |--------------------------------------------------------------------------
+            */
+            'norec' => data_get(
+                $reservation,
+                'norec'
+            ),
+
+            'noreservasi' => data_get(
+                $reservation,
+                'noreservasi'
+            ),
+
+            /*
+            |--------------------------------------------------------------------------
+            | Jadwal
+            |--------------------------------------------------------------------------
+            */
+            'tanggalreservasi' => data_get(
+                $reservation,
+                'tanggalreservasi'
+            ),
+
+            'jam' => data_get(
+                $reservation,
+                'jamreservasi'
+            ),
+
+            'jamreservasi' => data_get(
+                $reservation,
+                'jamreservasi'
+            ),
+
+            /*
+            |--------------------------------------------------------------------------
+            | Dokter / Poli / Lokasi
+            |--------------------------------------------------------------------------
+            */
+            'dokter' => data_get(
+                $reservation,
+                'dokter'
+            ),
+
+            'poli' => data_get(
+                $reservation,
+                'namaruangan'
+            ),
+
+            'namaruangan' => data_get(
+                $reservation,
+                'namaruangan'
+            ),
+
+            'lokasi' => data_get(
+                $reservation,
+                'namaruangan'
+            ),
+
+            /*
+            |--------------------------------------------------------------------------
+            | Status Reservasi dan Pasien
+            |--------------------------------------------------------------------------
+            */
+            'status' => data_get(
+                $reservation,
+                'status'
+            ),
+
+            'status_pasien' => data_get(
+                $reservation,
+                'status_pasien'
+            ),
+
+            'status_registrasi' => data_get(
+                $reservation,
+                'status_registrasi'
+            ),
+
+            'sudah_teregistrasi' => data_get(
+                $reservation,
+                'sudah_teregistrasi',
+                false
+            ),
+
+            'asal_registrasi' => data_get(
+                $reservation,
+                'asal_registrasi'
+            ),
+
+            'label_statusperiksa' => data_get(
+                $reservation,
+                'label_statusperiksa'
+            ),
+
+            'class_statusperiksa' => data_get(
+                $reservation,
+                'class_statusperiksa'
+            ),
+
+            'status_asli' => data_get(
+                $reservation,
+                'status_asli'
+            ),
+
+            /*
+            |--------------------------------------------------------------------------
+            | Antrean
+            |--------------------------------------------------------------------------
+            */
+            'noantrian' => data_get(
+                $reservation,
+                'noantrian'
+            ),
+
+            'noantrianpoli' => data_get(
+                $reservation,
+                'noantrianpoli'
+            ),
+
+            'loketkiosk' => data_get(
+                $reservation,
+                'loketkiosk'
+            ),
+
+            /*
+            |--------------------------------------------------------------------------
+            | Registrasi
+            |--------------------------------------------------------------------------
+            */
+            'noregistrasi' => data_get(
+                $reservation,
+                'noregistrasi'
+            ),
+
+            'norec_pd' => data_get(
+                $reservation,
+                'norec_pd'
+            ),
+
+            'norec_apd' => data_get(
+                $reservation,
+                'norec_apd'
+            ),
+
+            /*
+            |--------------------------------------------------------------------------
+            | Penjamin
+            |--------------------------------------------------------------------------
+            */
+            'kelompokpasien' => data_get(
+                $reservation,
+                'kelompokpasien'
+            ),
+
+            'nobpjs' => data_get(
+                $reservation,
+                'nobpjs'
+            ),
+        ];
     }
 
     /**
      * Menghapus identitas pasien dari session.
      */
-    public function keluar()
-    {
-        session()->forget([
-            'pasien.rm',
-            'pasien.tanggal_lahir',
-        ]);
+    public function keluar(
+        Request $request
+    ) {
+        $request->session()->forget(
+            'pasien'
+        );
 
-        return redirect()->route('');
+        return redirect()->route(
+            'queue.home'
+        );
     }
+
     public function check(Request $request)
     {
         $sessionPatient = session('pasien', []);
@@ -776,42 +1298,42 @@ class WaktuTungguController extends Controller
         return 'is-info';
     }
     public function logout(Request $request)
-{
-    /*
+    {
+        /*
     |--------------------------------------------------------------------------
     | Hapus Data Pasien
     |--------------------------------------------------------------------------
     */
 
-    $request->session()->forget('pasien');
+        $request->session()->forget('pasien');
 
-    /*
+        /*
     |--------------------------------------------------------------------------
     | Hapus Session Lama
     |--------------------------------------------------------------------------
     */
 
-    $request->session()->invalidate();
+        $request->session()->invalidate();
 
-    /*
+        /*
     |--------------------------------------------------------------------------
     | Generate CSRF Token Baru
     |--------------------------------------------------------------------------
     */
 
-    $request->session()->regenerateToken();
+        $request->session()->regenerateToken();
 
-    /*
+        /*
     |--------------------------------------------------------------------------
     | Kembali ke Halaman Utama
     |--------------------------------------------------------------------------
     */
 
-    return redirect()
-        ->route('queue.home')
-        ->with(
-            'success',
-            'Anda telah berhasil keluar dari sesi pasien.'
-        );
-}
+        return redirect()
+            ->route('queue.home')
+            ->with(
+                'success',
+                'Anda telah berhasil keluar dari sesi pasien.'
+            );
+    }
 }

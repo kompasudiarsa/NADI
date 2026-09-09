@@ -743,4 +743,311 @@ class PoliWaitingApiService
             'total' => 0,
         ], $extra);
     }
+    public function getRiwayatReservasi(
+    string $medicalRecord,
+    string $birthDate
+): array {
+    try {
+
+        $baseUrl = rtrim(
+            (string) config(
+                'api_simrs.base_url',
+                'http://127.0.0.1:8000'
+            ),
+            '/'
+        );
+
+        $endpoint =
+            '/api/service/getdatariwayatreservasi';
+
+        $url = $baseUrl . $endpoint;
+
+        $response =
+            $this->sendRiwayatReservasiRequest(
+                $medicalRecord,
+                $birthDate
+            );
+
+        if (! $response->successful()) {
+
+            logger()->error(
+                'API riwayat reservasi gagal.',
+                [
+                    'url' => $url,
+
+                    'http_status' =>
+                        $response->status(),
+
+                    'response_body' =>
+                        $response->body(),
+
+                    'rm' =>
+                        $medicalRecord,
+
+                    'tanggal_lahir' =>
+                        $birthDate,
+                ]
+            );
+
+            return [
+                'total' => 0,
+                'data' => [],
+                'is_error' => true,
+
+                'message' =>
+                    'API riwayat reservasi belum berhasil diakses.',
+
+                'http_status' =>
+                    $response->status(),
+
+                'request_url' =>
+                    $url,
+
+                'response_body' =>
+                    $response->body(),
+            ];
+        }
+
+        $body = $response->json();
+
+        if (! is_array($body)) {
+            return [
+                'total' => 0,
+                'data' => [],
+                'is_error' => true,
+
+                'message' =>
+                    'Respons API riwayat reservasi tidak valid.',
+
+                'request_url' =>
+                    $url,
+            ];
+        }
+
+        return $body;
+
+    } catch (Throwable $exception) {
+
+        logger()->error(
+            'Exception API riwayat reservasi.',
+            [
+                'message' =>
+                    $exception->getMessage(),
+
+                'rm' =>
+                    $medicalRecord,
+            ]
+        );
+
+        return [
+            'total' => 0,
+            'data' => [],
+            'is_error' => true,
+            'message' =>
+                $exception->getMessage(),
+        ];
+    }
+}
+   private function sendRiwayatReservasiRequest(
+    string $medicalRecord,
+    string $birthDate
+) {
+    /*
+    |--------------------------------------------------------------------------
+    | Base URL
+    |--------------------------------------------------------------------------
+    */
+    $baseUrl = rtrim(
+        (string) config(
+            'api_simrs.base_url',
+            'http://127.0.0.1:8000'
+        ),
+        '/'
+    );
+
+    $path =
+        '/api/service/getdatariwayatreservasi';
+
+    /*
+    |--------------------------------------------------------------------------
+    | Parameter GET
+    |--------------------------------------------------------------------------
+    |
+    | URUTAN PARAMETER PENTING.
+    |
+    */
+    $query = [
+        'rm' => trim($medicalRecord),
+        'tanggal_lahir' => $birthDate,
+        'tgllahir' => $birthDate,
+    ];
+
+    /*
+    |--------------------------------------------------------------------------
+    | Query String
+    |--------------------------------------------------------------------------
+    */
+    $queryString = http_build_query(
+        $query,
+        '',
+        '&',
+        PHP_QUERY_RFC3986
+    );
+
+    /*
+    |--------------------------------------------------------------------------
+    | Canonical URI
+    |--------------------------------------------------------------------------
+    */
+    $canonicalUri =
+        $path . '?' . $queryString;
+
+    /*
+    |--------------------------------------------------------------------------
+    | Timestamp
+    |--------------------------------------------------------------------------
+    */
+    $timestamp =
+        (string) time();
+
+    /*
+    |--------------------------------------------------------------------------
+    | GET tidak mempunyai body
+    |--------------------------------------------------------------------------
+    |
+    | SHA256 dari string kosong:
+    |
+    | e3b0c44298fc1c149afbf4c8996fb924
+    | 27ae41e4649b934ca495991b7852b855
+    |
+    */
+    $bodyHash = hash(
+        'sha256',
+        ''
+    );
+
+    /*
+    |--------------------------------------------------------------------------
+    | Token
+    |--------------------------------------------------------------------------
+    */
+    $token = trim(
+        (string) config(
+            'api_simrs.token'
+        )
+    );
+
+    if ($token === '') {
+        throw new RuntimeException(
+            'API SIMRS token belum dikonfigurasi.'
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Signature
+    |--------------------------------------------------------------------------
+    */
+    $signature =
+        $this->generateApiSignature(
+            'GET',
+            $canonicalUri,
+            $timestamp,
+            $bodyHash
+        );
+
+    /*
+    |--------------------------------------------------------------------------
+    | URL final
+    |--------------------------------------------------------------------------
+    */
+    $url =
+        $baseUrl . $canonicalUri;
+
+    /*
+    |--------------------------------------------------------------------------
+    | Debug sementara
+    |--------------------------------------------------------------------------
+    */
+    logger()->info(
+        'API Riwayat Reservasi Signature',
+        [
+            'method' =>
+                'GET',
+
+            'canonical_uri' =>
+                $canonicalUri,
+
+            'timestamp' =>
+                $timestamp,
+
+            'body_hash' =>
+                $bodyHash,
+
+            'payload' =>
+                implode("\n", [
+                    'GET',
+                    $canonicalUri,
+                    $timestamp,
+                    $bodyHash,
+                ]),
+
+            'signature' =>
+                $signature,
+
+            'url' =>
+                $url,
+        ]
+    );
+
+    /*
+    |--------------------------------------------------------------------------
+    | Request
+    |--------------------------------------------------------------------------
+    */
+    return Http::timeout(20)
+        ->acceptJson()
+        ->withHeaders([
+            'X-Token' =>
+                $token,
+
+            'X-Timestamp' =>
+                $timestamp,
+
+            'X-Signature' =>
+                $signature,
+        ])
+        ->get($url);
+}
+    private function generateApiSignature(
+    string $method,
+    string $canonicalUri,
+    string $timestamp,
+    string $bodyHash
+): string {
+    $secret = trim(
+        (string) config(
+            'api_simrs.secret'
+        )
+    );
+
+    if ($secret === '') {
+        throw new RuntimeException(
+            'API client secret belum dikonfigurasi.'
+        );
+    }
+
+    $payload = implode("\n", [
+        strtoupper($method),
+        $canonicalUri,
+        $timestamp,
+        $bodyHash,
+    ]);
+
+    return hash_hmac(
+        'sha256',
+        $payload,
+        $secret
+    );
+}
 }
