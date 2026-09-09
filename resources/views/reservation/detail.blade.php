@@ -363,185 +363,33 @@
     |--------------------------------------------------------------------------
     | Surat Kontrol BPJS
     |--------------------------------------------------------------------------
-    | Pengecekan mendukung 2 cara:
-    |
-    | 1. Berdasarkan No. Kartu BPJS:
-    |    No Kartu + tanggal reservasi + kode poli BPJS.
-    |
-    | 2. Berdasarkan No. Surat Kontrol:
-    |    No Surat Kontrol tetap dikirim bersama No Kartu, tanggal reservasi,
-    |    dan kode poli agar hasil BPJS dapat divalidasi terhadap reservasi.
-    |
-    | Catatan:
-    | - kode poli di bawah HARUS kode poli BPJS/subspesialis,
-    |   bukan ID/objectruanganfk SIMRS.
-    | - nomorreferensi hanya dipakai sebagai Surat Kontrol bila jenis
-    |   kunjungan adalah kontrol (jenis kunjungan = 3).
+    | Prioritas:
+    | 1. nosuratkontrol dari kontrol berikutnya
+    | 2. nomor kartu BPJS bila surat kontrol belum ada
     */
-
-    $appointmentVisitType = $appointment
-        ? data_get(
-            $appointment,
-            'jeniskunjungan',
-            data_get(
-                $appointment,
-                'jenis_kunjungan',
-                data_get($appointment, 'jenisKunjungan')
-            )
-        )
-        : null;
-
     $appointmentControlLetter = $appointment
         ? data_get(
             $appointment,
             'nosuratkontrol',
-            data_get(
-                $appointment,
-                'noSuratKontrol',
-                data_get(
-                    $patient,
-                    'reservation_raw.nosuratkontrol'
-                )
-            )
+            data_get($patient, 'reservation_raw.nosuratkontrol')
         )
         : data_get($patient, 'reservation_raw.nosuratkontrol');
-
-    if (
-        !$appointmentControlLetter
-        && (string) $appointmentVisitType === '3'
-        && $appointment
-    ) {
-        $appointmentControlLetter = data_get(
-            $appointment,
-            'nomorreferensi',
-            data_get($appointment, 'nomorReferensi')
-        );
-    }
 
     $appointmentBpjsCard = $appointment
         ? data_get(
             $appointment,
             'nobpjs',
             data_get(
-                $appointment,
-                'nokartu',
-                data_get(
-                    $appointment,
-                    'noKartu',
-                    data_get(
-                        $patient,
-                        'reservation_raw.nobpjs',
-                        data_get(
-                            $patient,
-                            'bpjs_number',
-                            data_get($patient, 'no_bpjs')
-                        )
-                    )
-                )
+                $patient,
+                'reservation_raw.nobpjs',
+                data_get($patient, 'bpjs_number')
             )
         )
         : data_get(
             $patient,
             'reservation_raw.nobpjs',
-            data_get(
-                $patient,
-                'bpjs_number',
-                data_get($patient, 'no_bpjs')
-            )
+            data_get($patient, 'bpjs_number')
         );
-
-    /*
-     * Kode poli BPJS untuk pengecekan Surat Kontrol.
-     *
-     * PRIORITAS UTAMA:
-     * kodepolisubspesialis
-     *
-     * Contoh:
-     * "kodepolisubspesialis": "SAR"
-     *
-     * Nilai inilah yang dikirim ke endpoint cek Surat Kontrol
-     * sebagai parameter "kodepoli".
-     */
-    $appointmentBpjsPoli = $appointment
-        ? data_get(
-            $appointment,
-            'kodepolisubspesialis',
-            data_get(
-                $appointment,
-                'kodePoliSubspesialis',
-                data_get(
-                    $appointment,
-                    'kodesubspesialisbpjs',
-                    data_get(
-                        $appointment,
-                        'kodepoli',
-                        data_get(
-                            $appointment,
-                            'kodePoli',
-                            data_get(
-                                $appointment,
-                                'kodepoli_bpjs',
-                                data_get(
-                                    $appointment,
-                                    'kdsepesialis',
-                                    data_get(
-                                        $patient,
-                                        'reservation_raw.kodepolisubspesialis',
-                                        data_get(
-                                            $patient,
-                                            'reservation_raw.kodePoliSubspesialis',
-                                            data_get(
-                                                $patient,
-                                                'reservation_raw.kodesubspesialisbpjs',
-                                                data_get(
-                                                    $patient,
-                                                    'reservation_raw.kodepoli'
-                                                )
-                                            )
-                                        )
-                                    )
-                                )
-                            )
-                        )
-                    )
-                )
-            )
-        )
-        : data_get(
-            $patient,
-            'reservation_raw.kodepolisubspesialis',
-            data_get(
-                $patient,
-                'reservation_raw.kodePoliSubspesialis',
-                data_get(
-                    $patient,
-                    'reservation_raw.kodesubspesialisbpjs',
-                    data_get(
-                        $patient,
-                        'reservation_raw.kodepoli'
-                    )
-                )
-            )
-        );
-
-    /*
-     * Tanggal reservasi untuk pencocokan dengan tglRencanaKontrol BPJS.
-     */
-    $appointmentBpjsDate = null;
-
-    if ($appointmentDateRaw) {
-        try {
-            $appointmentBpjsDate = \Carbon\Carbon::parse(
-                $appointmentDateRaw
-            )->format('Y-m-d');
-        } catch (\Throwable $e) {
-            $appointmentBpjsDate = substr(
-                (string) $appointmentDateRaw,
-                0,
-                10
-            );
-        }
-    }
 
     $appointmentBpjsReference = $appointmentControlLetter
         ?: $appointmentBpjsCard;
@@ -563,64 +411,24 @@
         )
         : data_get($patient, 'reservation_raw.noreservasi');
 
-    /*
-     * Route internal aplikasi untuk melakukan request ke BPJS VClaim.
-     * Jangan melakukan request VClaim langsung dari JavaScript/browser.
-     */
-    if (Route::has('bpjs.surat-kontrol.check')) {
-        $appointmentBpjsCheckBaseUrl = route(
-            'bpjs.surat-kontrol.check'
-        );
-    } elseif (Route::has('bpjs.surat-kontrol.index')) {
-        $appointmentBpjsCheckBaseUrl = route(
-            'bpjs.surat-kontrol.index'
-        );
+    if (Route::has('bpjs.surat-kontrol.index')) {
+        $appointmentBpjsCheckBaseUrl = route('bpjs.surat-kontrol.index');
+    } elseif (Route::has('reservation.index')) {
+        $appointmentBpjsCheckBaseUrl = route('reservation.index');
     } else {
-        $appointmentBpjsCheckBaseUrl = null;
+        $appointmentBpjsCheckBaseUrl = url('/layanan/cek-reservasi');
     }
-
-    $appointmentCanCheckByLetter = !empty(
-        $appointmentControlLetter
-    );
-
-    $appointmentCanCheckByCard =
-        !empty($appointmentBpjsCard)
-        && !empty($appointmentBpjsDate)
-        && !empty($appointmentBpjsPoli);
-
-    $appointmentBpjsCanCheck =
-        $appointmentCanCheckByLetter
-        || $appointmentCanCheckByCard;
 
     $appointmentBpjsCheckUrl = null;
 
-    /*
-     * Tombol "Cek Surat Kontrol BPJS" tetap ditampilkan jika nomor kartu
-     * atau nomor surat tersedia. Parameter yang tersedia dikirim ke controller.
-     * Controller akan menentukan metode pengecekan dan memvalidasi kelengkapan.
-     */
-    if (
-        $appointmentBpjsCheckBaseUrl
-        && $appointmentBpjsReference
-    ) {
-        $appointmentBpjsCheckParams = array_filter(
-            [
-                'nosuratkontrol' => $appointmentControlLetter,
-                'nokartu' => $appointmentBpjsCard,
-                'tanggalreservasi' => $appointmentBpjsDate,
-                'kodepoli' => $appointmentBpjsPoli,
-            ],
-            static function ($value) {
-                return $value !== null && $value !== '';
-            }
-        );
-
+    if ($appointmentBpjsReference) {
         $appointmentBpjsCheckUrl =
             $appointmentBpjsCheckBaseUrl
             . '?'
-            . http_build_query(
-                $appointmentBpjsCheckParams
-            );
+            . http_build_query([
+                $appointmentBpjsReferenceType =>
+                    $appointmentBpjsReference,
+            ]);
     }
 @endphp
 
@@ -929,28 +737,6 @@
         box-shadow: 0 6px 14px rgba(22, 58, 147, .18);
     }
 
-
-    /* Tombol cek Surat Kontrol pada baris No. Kartu BPJS */
-    .nadi-bpjs-check-button {
-        max-width: 132px;
-        min-height: 28px;
-        padding: 0 8px;
-        white-space: normal;
-        text-align: center;
-        line-height: 1.15;
-    }
-
-    @media (max-width: 420px) {
-        .nadi-bpjs-info-head {
-            align-items: flex-start;
-        }
-
-        .nadi-bpjs-check-button {
-            max-width: 118px;
-            font-size: 7.7px;
-        }
-    }
-
     .nadi-booking-info-line {
         margin-top: 10px;
     }
@@ -1093,80 +879,65 @@
         padding: 16px 18px 20px;
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | QR Code Detail Reservasi
-    |--------------------------------------------------------------------------
-    */
     .nadi-detail-qr {
-        display: none;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
         margin-bottom: 14px;
         padding: 14px;
         border: 1px solid #dbe9f8;
         border-radius: 16px;
-        background:
-            linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+        background: #fff;
         text-align: center;
-    }
-
-    .nadi-detail-qr.is-visible {
-        display: block;
     }
 
     .nadi-detail-qr-box {
         display: grid;
-        width: 174px;
-        min-height: 174px;
-        margin: 0 auto;
+        width: 164px;
+        height: 164px;
         place-items: center;
-        padding: 8px;
+        padding: 7px;
         border: 1px solid #e2eaf4;
         border-radius: 14px;
         background: #fff;
-        box-shadow: 0 7px 20px rgba(15, 45, 115, .08);
+        box-shadow: 0 6px 18px rgba(15, 45, 115, .07);
     }
 
-    .nadi-detail-qr-box svg {
+    .nadi-detail-qr-box img,
+    .nadi-detail-qr-box canvas {
         display: block;
-        width: 156px;
-        height: 156px;
+        max-width: 100%;
+        height: auto;
     }
 
     .nadi-detail-qr-title {
-        margin-top: 9px;
         color: var(--nadi-blue);
         font-size: 11px;
         font-weight: 950;
     }
 
-    .nadi-detail-qr-number {
-        margin-top: 3px;
-        overflow-wrap: anywhere;
-        color: #3f5f8c;
-        font-size: 11px;
-        font-weight: 900;
-        letter-spacing: .06em;
+    .nadi-detail-qr-text {
+        color: #74849c;
+        font-size: 9px;
+        font-weight: 700;
+        line-height: 1.4;
     }
 
-    .nadi-detail-qr-help {
-        margin-top: 5px;
-        color: #7a899f;
-        font-size: 8.5px;
-        font-weight: 650;
-        line-height: 1.45;
-    }
-
-    .nadi-detail-qr-error {
-        display: flex;
-        min-height: 156px;
+    .nadi-detail-qr-fallback {
+        display: none;
         align-items: center;
         justify-content: center;
+        width: 150px;
+        min-height: 150px;
         padding: 12px;
-        color: #9a5e0b;
+        border: 1px dashed #cbd8e8;
+        border-radius: 10px;
+        color: #7b8ba3;
         font-size: 10px;
         font-weight: 800;
         line-height: 1.45;
-        text-align: center;
     }
 
     .nadi-detail-highlight {
@@ -1228,57 +999,6 @@
     .nadi-detail-value.is-status {
         color: var(--nadi-green);
     }
-
-
-    /* Modal Cek Surat Kontrol BPJS */
-    .nadi-bpjs-modal-status {
-        display: none;
-        margin-bottom: 14px;
-        padding: 12px 13px;
-        border: 1px solid #dbe9f8;
-        border-radius: 15px;
-        background: #f7fbff;
-    }
-    .nadi-bpjs-modal-status.is-visible { display:flex; align-items:flex-start; gap:10px; }
-    .nadi-bpjs-modal-status.is-success { border-color:#ccebd9; background:#eefbf4; color:#137a48; }
-    .nadi-bpjs-modal-status.is-warning { border-color:#f2dfad; background:#fff9e9; color:#94600a; }
-    .nadi-bpjs-modal-status.is-danger { border-color:#f0cccc; background:#fff4f4; color:#b63838; }
-    .nadi-bpjs-modal-status-icon {
-        display:grid; width:32px; height:32px; flex:0 0 32px; place-items:center;
-        border-radius:10px; background:rgba(255,255,255,.78); font-size:15px; font-weight:950;
-    }
-    .nadi-bpjs-modal-status-title { font-size:11px; font-weight:950; line-height:1.35; }
-    .nadi-bpjs-modal-status-message { margin-top:2px; font-size:9.5px; font-weight:650; line-height:1.45; opacity:.88; }
-    .nadi-bpjs-loading {
-        display:none; min-height:215px; align-items:center; justify-content:center;
-        flex-direction:column; gap:11px; color:#60728c; text-align:center;
-    }
-    .nadi-bpjs-loading.is-visible { display:flex; }
-    .nadi-bpjs-spinner {
-        width:34px; height:34px; border:3px solid #dbe8f6; border-top-color:var(--nadi-blue-2);
-        border-radius:50%; animation:nadiBpjsSpin .8s linear infinite;
-    }
-    @keyframes nadiBpjsSpin { to { transform:rotate(360deg); } }
-    .nadi-bpjs-loading-title { color:var(--nadi-blue); font-size:11px; font-weight:950; }
-    .nadi-bpjs-loading-text { max-width:270px; font-size:9px; line-height:1.45; }
-    .nadi-bpjs-result { display:none; }
-    .nadi-bpjs-result.is-visible { display:block; }
-    .nadi-bpjs-letter-highlight {
-        margin-bottom:12px; padding:13px 14px; border:1px solid #d8e9f8; border-radius:15px;
-        background:linear-gradient(135deg,#f6fbff,#eef7ff);
-    }
-    .nadi-bpjs-letter-highlight-label { color:#718399; font-size:8.5px; font-weight:850; }
-    .nadi-bpjs-letter-highlight-value {
-        margin-top:3px; overflow-wrap:anywhere; color:var(--nadi-blue); font-size:16px;
-        font-weight:950; letter-spacing:.025em;
-    }
-    .nadi-bpjs-result-note {
-        display:none; margin-top:12px; padding:10px 11px; border-radius:12px;
-        background:#fff8e7; color:#8d620e; font-size:9px; font-weight:700; line-height:1.45;
-    }
-    .nadi-bpjs-result-note.is-visible { display:block; }
-    .nadi-bpjs-check-button { border:0; cursor:pointer; }
-    .nadi-bpjs-check-button[disabled] { opacity:.58; cursor:wait; transform:none; }
 
     @media (max-width: 420px) {
         .nadi-detail-grid {
@@ -1389,9 +1109,7 @@
     }
 
     .nadi-doctor-avatar {
-        /* Posisi foto/icon dokter dibuat lebih ke atas */
-        align-self: start;
-        margin-top: 6px;
+        align-self: center;
     }
 
     .nadi-doctor-photo {
@@ -1696,10 +1414,6 @@
             height: 68px;
         }
 
-        .nadi-doctor-avatar {
-            margin-top: 4px;
-        }
-
         .nadi-menu-grid {
             gap: 8px;
         }
@@ -1964,21 +1678,20 @@
                                             : 'Nomor Kartu BPJS' }}
                                     </div>
 
-                                    <button
+                                    <a
                                         id="kontrol-bpjs-check"
                                         class="nadi-bpjs-check-button"
-                                        type="button"
-                                        data-check-url="{{ $appointmentBpjsCheckUrl ?: '' }}"
-                                        @if(!$appointmentBpjsReference || !$appointmentBpjsCheckBaseUrl) style="display:none;" @endif
+                                        href="{{ $appointmentBpjsCheckUrl ?: '#' }}"
+                                        @if(!$appointmentBpjsReference) style="display:none;" @endif
                                         aria-label="Cek Surat Kontrol BPJS"
-                                        title="Cek ada/tidaknya Surat Kontrol di BPJS"
+                                        title="Cek Surat Kontrol BPJS"
                                     >
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                                             <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/>
                                             <path d="M16.5 16.5L21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                                         </svg>
-                                        Cek Surat Kontrol
-                                    </button>
+                                        Cek
+                                    </a>
                                 </div>
 
                                 <div
@@ -2142,25 +1855,25 @@
                                 id="detail-qr-code"
                                 class="nadi-detail-qr-box"
                                 aria-label="QR Code Nomor Reservasi"
-                            ></div>
+                            >
+                                <div
+                                    id="detail-qr-fallback"
+                                    class="nadi-detail-qr-fallback"
+                                >
+                                    QR Code belum dapat ditampilkan
+                                </div>
+                            </div>
 
                             <div class="nadi-detail-qr-title">
                                 QR Code Nomor Reservasi
                             </div>
 
-                            <div
-                                id="detail-qr-number"
-                                class="nadi-detail-qr-number"
-                            >
-                                -
-                            </div>
-
-                            <div class="nadi-detail-qr-help">
-                                Tunjukkan QR Code ini saat diperlukan untuk
-                                identifikasi reservasi.
+                            <div class="nadi-detail-qr-text">
+                                Tunjukkan QR Code ini saat diperlukan untuk identifikasi reservasi.
                             </div>
                         </div>
 
+                       
 
                         <div class="nadi-detail-grid">
                             <div class="nadi-detail-item is-wide">
@@ -2217,91 +1930,6 @@
                                 <div class="nadi-detail-label">No. Rujukan</div>
                                 <div id="detail-no-rujukan" class="nadi-detail-value">-</div>
                             </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {{-- Modal Cek Surat Kontrol BPJS --}}
-            <div
-                id="bpjs-control-backdrop"
-                class="nadi-detail-backdrop"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="bpjs-control-title"
-            >
-                <div class="nadi-detail-modal">
-                    <div class="nadi-detail-modal-head">
-                        <div class="nadi-detail-modal-title-wrap">
-                            <div class="nadi-detail-modal-kicker">BPJS KESEHATAN</div>
-                            <h3 id="bpjs-control-title" class="nadi-detail-modal-title">Cek Surat Kontrol</h3>
-                        </div>
-                        <button id="bpjs-control-close" class="nadi-detail-close" type="button" aria-label="Tutup hasil surat kontrol" title="Tutup">
-                            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                <path d="M6 6L18 18M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                            </svg>
-                        </button>
-                    </div>
-
-                    <div class="nadi-detail-body">
-                        <div id="bpjs-control-loading" class="nadi-bpjs-loading">
-                            <div class="nadi-bpjs-spinner"></div>
-                            <div class="nadi-bpjs-loading-title">Memeriksa Surat Kontrol BPJS</div>
-                            <div class="nadi-bpjs-loading-text">
-                                Data sedang dicocokkan dengan nomor surat/no. kartu, tanggal reservasi, dan kode poli BPJS.
-                            </div>
-                        </div>
-
-                        <div id="bpjs-control-status" class="nadi-bpjs-modal-status">
-                            <div id="bpjs-control-status-icon" class="nadi-bpjs-modal-status-icon">✓</div>
-                            <div>
-                                <div id="bpjs-control-status-title" class="nadi-bpjs-modal-status-title">-</div>
-                                <div id="bpjs-control-status-message" class="nadi-bpjs-modal-status-message">-</div>
-                            </div>
-                        </div>
-
-                        <div id="bpjs-control-result" class="nadi-bpjs-result">
-                            <div class="nadi-bpjs-letter-highlight">
-                                <div class="nadi-bpjs-letter-highlight-label">NOMOR SURAT KONTROL</div>
-                                <div id="bpjs-result-no-surat" class="nadi-bpjs-letter-highlight-value">-</div>
-                            </div>
-
-                            <div class="nadi-detail-grid">
-                                <div class="nadi-detail-item">
-                                    <div class="nadi-detail-label">No. Kartu BPJS</div>
-                                    <div id="bpjs-result-no-kartu" class="nadi-detail-value">-</div>
-                                </div>
-                                <div class="nadi-detail-item">
-                                    <div class="nadi-detail-label">Tanggal Rencana Kontrol</div>
-                                    <div id="bpjs-result-tanggal" class="nadi-detail-value">-</div>
-                                </div>
-                                <div class="nadi-detail-item is-wide">
-                                    <div class="nadi-detail-label">Poli Tujuan</div>
-                                    <div id="bpjs-result-poli" class="nadi-detail-value">-</div>
-                                </div>
-                                <div class="nadi-detail-item is-wide">
-                                    <div class="nadi-detail-label">Dokter</div>
-                                    <div id="bpjs-result-dokter" class="nadi-detail-value">-</div>
-                                </div>
-                                <div class="nadi-detail-item">
-                                    <div class="nadi-detail-label">Jenis Kontrol</div>
-                                    <div id="bpjs-result-jenis" class="nadi-detail-value">-</div>
-                                </div>
-                                <div class="nadi-detail-item">
-                                    <div class="nadi-detail-label">Tanggal Terbit</div>
-                                    <div id="bpjs-result-terbit" class="nadi-detail-value">-</div>
-                                </div>
-                                <div class="nadi-detail-item is-wide">
-                                    <div class="nadi-detail-label">SEP Asal Kontrol</div>
-                                    <div id="bpjs-result-sep" class="nadi-detail-value">-</div>
-                                </div>
-                                <div class="nadi-detail-item is-wide">
-                                    <div class="nadi-detail-label">Metode Pencarian</div>
-                                    <div id="bpjs-result-metode" class="nadi-detail-value">-</div>
-                                </div>
-                            </div>
-
-                            <div id="bpjs-result-note" class="nadi-bpjs-result-note"></div>
                         </div>
                     </div>
                 </div>
@@ -2432,712 +2060,8 @@
 <script>
     window.nadiCurrentAppointment = @json($appointment);
 </script>
-
-<script>
-/*
-|--------------------------------------------------------------------------
-| NADI QR Code Generator - Self Contained
-|--------------------------------------------------------------------------
-| QR Version 1-L, byte mode.
-| Cocok untuk noreservasi pendek seperti: 347e71c.
-| Tidak membutuhkan CDN / internet / file JS tambahan.
-|--------------------------------------------------------------------------
-*/
-(function (global) {
-    'use strict';
-
-    const SIZE = 21;
-    const DATA_CODEWORDS = 19;
-    const ECC_CODEWORDS = 7;
-
-    function utf8Bytes(text) {
-        if (typeof TextEncoder !== 'undefined') {
-            return Array.from(
-                new TextEncoder().encode(
-                    String(text)
-                )
-            );
-        }
-
-        const encoded = unescape(
-            encodeURIComponent(
-                String(text)
-            )
-        );
-
-        const bytes = [];
-
-        for (
-            let i = 0;
-            i < encoded.length;
-            i++
-        ) {
-            bytes.push(
-                encoded.charCodeAt(i) & 0xff
-            );
-        }
-
-        return bytes;
-    }
-
-    function createGfTables() {
-        const exp = new Array(512).fill(0);
-        const log = new Array(256).fill(0);
-
-        let x = 1;
-
-        for (let i = 0; i < 255; i++) {
-            exp[i] = x;
-            log[x] = i;
-
-            x <<= 1;
-
-            if (x & 0x100) {
-                x ^= 0x11d;
-            }
-        }
-
-        for (let i = 255; i < 512; i++) {
-            exp[i] = exp[i - 255];
-        }
-
-        return {
-            exp: exp,
-            log: log
-        };
-    }
-
-    const GF = createGfTables();
-
-    function gfMul(a, b) {
-        if (a === 0 || b === 0) {
-            return 0;
-        }
-
-        return GF.exp[
-            GF.log[a] + GF.log[b]
-        ];
-    }
-
-    function polyMul(a, b) {
-        const out = new Array(
-            a.length + b.length - 1
-        ).fill(0);
-
-        for (
-            let i = 0;
-            i < a.length;
-            i++
-        ) {
-            for (
-                let j = 0;
-                j < b.length;
-                j++
-            ) {
-                out[i + j] ^=
-                    gfMul(
-                        a[i],
-                        b[j]
-                    );
-            }
-        }
-
-        return out;
-    }
-
-    function generatorPolynomial(ecCount) {
-        let generator = [1];
-
-        for (
-            let i = 0;
-            i < ecCount;
-            i++
-        ) {
-            generator = polyMul(
-                generator,
-                [1, GF.exp[i]]
-            );
-        }
-
-        return generator;
-    }
-
-    function reedSolomon(
-        data,
-        ecCount
-    ) {
-        const generator =
-            generatorPolynomial(ecCount);
-
-        let ecc =
-            new Array(ecCount).fill(0);
-
-        data.forEach(
-            function (byte) {
-                const factor =
-                    byte ^ ecc[0];
-
-                ecc = ecc.slice(1);
-                ecc.push(0);
-
-                for (
-                    let i = 0;
-                    i < ecCount;
-                    i++
-                ) {
-                    ecc[i] ^=
-                        gfMul(
-                            generator[i + 1],
-                            factor
-                        );
-                }
-            }
-        );
-
-        return ecc;
-    }
-
-    function pushBits(
-        bits,
-        value,
-        length
-    ) {
-        for (
-            let i = length - 1;
-            i >= 0;
-            i--
-        ) {
-            bits.push(
-                (value >> i) & 1
-            );
-        }
-    }
-
-    function createCodewords(text) {
-        const bytes =
-            utf8Bytes(text);
-
-        /*
-        | Version 1-L byte mode maksimal 17 byte.
-        | noreservasi SIMRS umumnya pendek.
-        */
-        if (bytes.length > 17) {
-            throw new Error(
-                'No. Reservasi terlalu panjang untuk QR lokal.'
-            );
-        }
-
-        const bits = [];
-
-        // Mode byte = 0100
-        pushBits(
-            bits,
-            0x4,
-            4
-        );
-
-        // Character count untuk Version 1-9 = 8 bit
-        pushBits(
-            bits,
-            bytes.length,
-            8
-        );
-
-        bytes.forEach(
-            function (byte) {
-                pushBits(
-                    bits,
-                    byte,
-                    8
-                );
-            }
-        );
-
-        const bitLimit =
-            DATA_CODEWORDS * 8;
-
-        const terminator =
-            Math.min(
-                4,
-                bitLimit - bits.length
-            );
-
-        for (
-            let i = 0;
-            i < terminator;
-            i++
-        ) {
-            bits.push(0);
-        }
-
-        while (
-            bits.length % 8 !== 0
-        ) {
-            bits.push(0);
-        }
-
-        const data = [];
-
-        for (
-            let i = 0;
-            i < bits.length;
-            i += 8
-        ) {
-            let value = 0;
-
-            for (
-                let j = 0;
-                j < 8;
-                j++
-            ) {
-                value =
-                    (value << 1)
-                    | bits[i + j];
-            }
-
-            data.push(value);
-        }
-
-        const pads = [
-            0xec,
-            0x11
-        ];
-
-        let padIndex = 0;
-
-        while (
-            data.length <
-            DATA_CODEWORDS
-        ) {
-            data.push(
-                pads[
-                    padIndex % 2
-                ]
-            );
-
-            padIndex++;
-        }
-
-        return data.concat(
-            reedSolomon(
-                data,
-                ECC_CODEWORDS
-            )
-        );
-    }
-
-    function bchDigit(value) {
-        let digit = 0;
-
-        while (value !== 0) {
-            digit++;
-            value >>>= 1;
-        }
-
-        return digit;
-    }
-
-    function bchTypeInfo(data) {
-        const G15 = 0x537;
-        const G15_MASK = 0x5412;
-
-        let d = data << 10;
-
-        while (
-            bchDigit(d)
-            - bchDigit(G15)
-            >= 0
-        ) {
-            d ^=
-                G15 << (
-                    bchDigit(d)
-                    - bchDigit(G15)
-                );
-        }
-
-        return (
-            ((data << 10) | d)
-            ^ G15_MASK
-        );
-    }
-
-    function setupFinder(
-        matrix,
-        row,
-        col
-    ) {
-        for (
-            let r = -1;
-            r <= 7;
-            r++
-        ) {
-            if (
-                row + r < 0
-                || row + r >= SIZE
-            ) {
-                continue;
-            }
-
-            for (
-                let c = -1;
-                c <= 7;
-                c++
-            ) {
-                if (
-                    col + c < 0
-                    || col + c >= SIZE
-                ) {
-                    continue;
-                }
-
-                const dark =
-                    (
-                        r >= 0
-                        && r <= 6
-                        && (
-                            c === 0
-                            || c === 6
-                        )
-                    )
-                    ||
-                    (
-                        c >= 0
-                        && c <= 6
-                        && (
-                            r === 0
-                            || r === 6
-                        )
-                    )
-                    ||
-                    (
-                        r >= 2
-                        && r <= 4
-                        && c >= 2
-                        && c <= 4
-                    );
-
-                matrix[
-                    row + r
-                ][
-                    col + c
-                ] = Boolean(dark);
-            }
-        }
-    }
-
-    function createMatrix(text) {
-        const matrix =
-            Array.from(
-                {
-                    length: SIZE
-                },
-                function () {
-                    return new Array(
-                        SIZE
-                    ).fill(null);
-                }
-            );
-
-        setupFinder(
-            matrix,
-            0,
-            0
-        );
-
-        setupFinder(
-            matrix,
-            SIZE - 7,
-            0
-        );
-
-        setupFinder(
-            matrix,
-            0,
-            SIZE - 7
-        );
-
-        // Timing pattern
-        for (
-            let r = 8;
-            r < SIZE - 8;
-            r++
-        ) {
-            if (
-                matrix[r][6] === null
-            ) {
-                matrix[r][6] =
-                    r % 2 === 0;
-            }
-        }
-
-        for (
-            let c = 8;
-            c < SIZE - 8;
-            c++
-        ) {
-            if (
-                matrix[6][c] === null
-            ) {
-                matrix[6][c] =
-                    c % 2 === 0;
-            }
-        }
-
-        /*
-        | Error correction L = 01
-        | Mask pattern = 000
-        */
-        const formatBits =
-            bchTypeInfo(
-                (1 << 3) | 0
-            );
-
-        for (
-            let i = 0;
-            i < 15;
-            i++
-        ) {
-            const dark =
-                (
-                    (formatBits >> i)
-                    & 1
-                ) === 1;
-
-            if (i < 6) {
-                matrix[i][8] =
-                    dark;
-            } else if (i < 8) {
-                matrix[i + 1][8] =
-                    dark;
-            } else {
-                matrix[
-                    SIZE - 15 + i
-                ][8] = dark;
-            }
-        }
-
-        for (
-            let i = 0;
-            i < 15;
-            i++
-        ) {
-            const dark =
-                (
-                    (formatBits >> i)
-                    & 1
-                ) === 1;
-
-            if (i < 8) {
-                matrix[8][
-                    SIZE - i - 1
-                ] = dark;
-            } else if (i < 9) {
-                matrix[8][
-                    15 - i
-                ] = dark;
-            } else {
-                matrix[8][
-                    15 - i - 1
-                ] = dark;
-            }
-        }
-
-        // Fixed dark module
-        matrix[
-            SIZE - 8
-        ][8] = true;
-
-        const codewords =
-            createCodewords(text);
-
-        let row = SIZE - 1;
-        let inc = -1;
-        let bitIndex = 7;
-        let byteIndex = 0;
-
-        for (
-            let originalCol =
-                SIZE - 1;
-            originalCol > 0;
-            originalCol -= 2
-        ) {
-            let col =
-                originalCol;
-
-            if (col <= 6) {
-                col--;
-            }
-
-            while (true) {
-                [
-                    col,
-                    col - 1
-                ].forEach(
-                    function (c) {
-                        if (
-                            matrix[row][c]
-                            !== null
-                        ) {
-                            return;
-                        }
-
-                        let dark = false;
-
-                        if (
-                            byteIndex
-                            < codewords.length
-                        ) {
-                            dark =
-                                (
-                                    (
-                                        codewords[
-                                            byteIndex
-                                        ]
-                                        >> bitIndex
-                                    )
-                                    & 1
-                                ) === 1;
-                        }
-
-                        // Mask 0
-                        if (
-                            (row + c)
-                            % 2 === 0
-                        ) {
-                            dark = !dark;
-                        }
-
-                        matrix[row][c] =
-                            dark;
-
-                        bitIndex--;
-
-                        if (
-                            bitIndex === -1
-                        ) {
-                            byteIndex++;
-                            bitIndex = 7;
-                        }
-                    }
-                );
-
-                row += inc;
-
-                if (
-                    row < 0
-                    || row >= SIZE
-                ) {
-                    row -= inc;
-                    inc = -inc;
-                    break;
-                }
-            }
-        }
-
-        return matrix;
-    }
-
-    function svgForMatrix(
-        matrix,
-        pixelSize
-    ) {
-        const quiet = 4;
-        const totalModules =
-            SIZE + quiet * 2;
-
-        const rects = [];
-
-        for (
-            let r = 0;
-            r < SIZE;
-            r++
-        ) {
-            for (
-                let c = 0;
-                c < SIZE;
-                c++
-            ) {
-                if (
-                    matrix[r][c]
-                ) {
-                    rects.push(
-                        '<rect x="'
-                        + (c + quiet)
-                        + '" y="'
-                        + (r + quiet)
-                        + '" width="1" height="1"/>'
-                    );
-                }
-            }
-        }
-
-        return (
-            '<svg '
-            + 'xmlns="http://www.w3.org/2000/svg" '
-            + 'viewBox="0 0 '
-            + totalModules
-            + ' '
-            + totalModules
-            + '" '
-            + 'width="'
-            + pixelSize
-            + '" '
-            + 'height="'
-            + pixelSize
-            + '" '
-            + 'role="img" '
-            + 'aria-label="QR Code Nomor Reservasi" '
-            + 'shape-rendering="crispEdges">'
-            + '<rect width="100%" height="100%" fill="#ffffff"/>'
-            + '<g fill="#000000">'
-            + rects.join('')
-            + '</g>'
-            + '</svg>'
-        );
-    }
-
-    function render(
-        container,
-        text,
-        size
-    ) {
-        if (!container) {
-            throw new Error(
-                'Container QR tidak tersedia.'
-            );
-        }
-
-        const value =
-            String(
-                text || ''
-            ).trim();
-
-        container.innerHTML = '';
-
-        if (!value) {
-            return false;
-        }
-
-        const matrix =
-            createMatrix(value);
-
-        container.innerHTML =
-            svgForMatrix(
-                matrix,
-                Number(size) || 156
-            );
-
-        return true;
-    }
-
-    global.NadiQRCode = {
-        render: render
-    };
-})(window);
-</script>
-
+<script src="{{ asset('js/nadi-qrcode-local.js') }}"></script>
 @if($appointmentRefreshUrl)
-
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const section = document.getElementById('kontrol-berikutnya');
@@ -3403,88 +2327,15 @@ document.addEventListener('DOMContentLoaded', function () {
             statusPasienEl.style.display = patientStatus ? 'inline-flex' : 'none';
         }
 
-        /*
-         * --------------------------------------------------------------
-         * Surat Kontrol BPJS
-         * --------------------------------------------------------------
-         * Cara 1:
-         *   nokartu + tanggalreservasi + kodepoli
-         *
-         * Cara 2:
-         *   nosuratkontrol
-         *
-         * Bila no surat tersedia, semua parameter konteks reservasi tetap
-         * ikut dikirim agar controller dapat melakukan validasi silang.
-         */
-        const visitType = String(
-            data.jeniskunjungan
-            || data.jenis_kunjungan
-            || data.jenisKunjungan
-            || ''
-        );
-
-        let controlLetter = data.nosuratkontrol
-            || data.noSuratKontrol
-            || '';
-
-        if (
-            !controlLetter
-            && visitType === '3'
-        ) {
-            controlLetter = data.nomorreferensi
-                || data.nomorReferensi
-                || '';
-        }
-
-        const bpjsCard = data.nobpjs
-            || data.nokartu
-            || data.noKartu
-            || data.bpjs_number
-            || '';
-
-        /*
-         * Kode poli untuk Surat Kontrol BPJS.
-         * Prioritaskan kodepolisubspesialis dari response kontrol.
-         * Contoh: kodepolisubspesialis = "SAR"
-         */
-        const bpjsPoli = data.kodepolisubspesialis
-            || data.kodePoliSubspesialis
-            || data.kodesubspesialisbpjs
-            || data.kodepoli
-            || data.kodePoli
-            || data.kodepoli_bpjs
-            || data.kdsepesialis
-            || '';
-
-        const bpjsDate = dateValue
-            ? String(dateValue).substring(0, 10)
-            : '';
-
+        const controlLetter = data.nosuratkontrol || '';
+        const bpjsCard = data.nobpjs || data.bpjs_number || '';
         const bpjsReference = controlLetter || bpjsCard;
-
-        const canCheckByLetter = Boolean(controlLetter);
-        const canCheckByCard = Boolean(
-            bpjsCard
-            && bpjsDate
-            && bpjsPoli
-        );
-
-        /*
-         * Tombol ditampilkan selama ada identitas BPJS yang bisa dicek.
-         * Jika parameter belum lengkap, modal akan menampilkan pesan yang jelas.
-         */
-        const canOpenBpjsCheck = Boolean(
-            bpjsCheckBaseUrl
-            && bpjsReference
-        );
+        const bpjsReferenceType = controlLetter ? 'nosuratkontrol' : 'nokartu';
 
         if (bpjsControlEl) {
             if (bpjsReference) {
                 bpjsControlEl.style.display = 'grid';
-                bpjsControlEl.classList.toggle(
-                    'is-letter',
-                    Boolean(controlLetter)
-                );
+                bpjsControlEl.classList.toggle('is-letter', Boolean(controlLetter));
 
                 if (bpjsLabelEl) {
                     bpjsLabelEl.textContent = controlLetter
@@ -3494,67 +2345,30 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 if (bpjsValueEl) {
                     bpjsValueEl.textContent = bpjsReference;
-                    bpjsValueEl.setAttribute(
-                        'title',
-                        bpjsReference
-                    );
+                    bpjsValueEl.setAttribute('title', bpjsReference);
                 }
 
                 if (bpjsCheckEl) {
-                    if (canOpenBpjsCheck) {
-                        const separator =
-                            bpjsCheckBaseUrl.includes('?')
-                                ? '&'
-                                : '?';
+                    const separator = bpjsCheckBaseUrl.includes('?') ? '&' : '?';
 
-                        const params = new URLSearchParams();
-
-                        if (controlLetter) {
-                            params.set(
-                                'nosuratkontrol',
-                                controlLetter
-                            );
-                        }
-
-                        if (bpjsCard) {
-                            params.set(
-                                'nokartu',
-                                bpjsCard
-                            );
-                        }
-
-                        if (bpjsDate) {
-                            params.set(
-                                'tanggalreservasi',
-                                bpjsDate
-                            );
-                        }
-
-                        if (bpjsPoli) {
-                            params.set(
-                                'kodepoli',
-                                bpjsPoli
-                            );
-                        }
-
-                        bpjsCheckEl.dataset.checkUrl =
+                    bpjsCheckEl.href = bpjsCheckBaseUrl
+                        ? (
                             bpjsCheckBaseUrl
                             + separator
-                            + params.toString();
+                            + encodeURIComponent(bpjsReferenceType)
+                            + '='
+                            + encodeURIComponent(bpjsReference)
+                        )
+                        : '#';
 
-                        bpjsCheckEl.style.display =
-                            'inline-flex';
-                    } else {
-                        bpjsCheckEl.dataset.checkUrl = '';
-                        bpjsCheckEl.style.display = 'none';
-                    }
+                    bpjsCheckEl.style.display = 'inline-flex';
                 }
             } else {
                 bpjsControlEl.style.display = 'none';
 
                 if (bpjsCheckEl) {
                     bpjsCheckEl.style.display = 'none';
-                    bpjsCheckEl.dataset.checkUrl = '';
+                    bpjsCheckEl.href = '#';
                 }
             }
         }
@@ -3676,20 +2490,16 @@ document.addEventListener('DOMContentLoaded', function () {
 </script>
 @endif
 
+<script src="{{ asset('js/nadi-qrcode.js') }}"></script>
+
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const detailButton = document.getElementById('kontrol-detail-button');
     const backdrop = document.getElementById('kontrol-detail-backdrop');
     const closeButton = document.getElementById('kontrol-detail-close');
-
-    const qrSection =
-        document.getElementById('detail-qr-section');
-
-    const qrCodeEl =
-        document.getElementById('detail-qr-code');
-
-    const qrNumberEl =
-        document.getElementById('detail-qr-number');
+    const qrSection = document.getElementById('detail-qr-section');
+    const qrCodeEl = document.getElementById('detail-qr-code');
+    const qrFallbackEl = document.getElementById('detail-qr-fallback');
 
     if (!detailButton || !backdrop || !closeButton) {
         return;
@@ -3760,87 +2570,95 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function renderReservationQr(value) {
-        const booking =
-            value
-            && value !== '-'
-                ? String(value).trim()
-                : '';
+        const booking = value && value !== '-'
+            ? String(value)
+            : '';
 
-        if (!qrSection || !qrCodeEl) {
+        if (!qrCodeEl) {
             return;
         }
 
-        qrCodeEl.innerHTML = '';
+        /*
+        |--------------------------------------------------------------------------
+        | Bersihkan QR sebelumnya
+        |--------------------------------------------------------------------------
+        */
+        while (qrCodeEl.firstChild) {
+            qrCodeEl.removeChild(
+                qrCodeEl.firstChild
+            );
+        }
 
         if (!booking) {
-            qrSection.classList.remove(
-                'is-visible'
-            );
-
-            if (qrNumberEl) {
-                qrNumberEl.textContent = '-';
+            if (qrSection) {
+                qrSection.style.display = 'none';
             }
 
             return;
         }
 
-        qrSection.classList.add(
-            'is-visible'
-        );
-
-        if (qrNumberEl) {
-            qrNumberEl.textContent =
-                booking;
+        if (qrSection) {
+            qrSection.style.display = 'flex';
         }
 
-        try {
-            if (
-                !window.NadiQRCode
-                || typeof window.NadiQRCode.render
-                    !== 'function'
-            ) {
-                throw new Error(
-                    'Generator QR belum tersedia.'
+        /*
+        |--------------------------------------------------------------------------
+        | Generate QR di browser
+        |--------------------------------------------------------------------------
+        | Nilai noreservasi tidak dikirim ke layanan QR eksternal.
+        | Library hanya dipakai untuk menggambar QR pada browser.
+        |--------------------------------------------------------------------------
+        */
+        if (
+            window.NadiQRCode &&
+            typeof window.NadiQRCode.render === 'function'
+        ) {
+            try {
+                window.NadiQRCode.render(
+                    qrCodeEl,
+                    booking,
+                    150
+                );
+
+                return;
+            } catch (qrError) {
+                console.error(
+                    'Gagal membuat QR Code:',
+                    qrError
                 );
             }
-
-            window.NadiQRCode.render(
-                qrCodeEl,
-                booking,
-                156
-            );
-        } catch (error) {
-            console.error(
-                'QR Code reservasi:',
-                error
-            );
-
-            qrCodeEl.innerHTML =
-                '<div class="nadi-detail-qr-error">'
-                + 'QR Code belum dapat dibuat.<br>'
-                + 'No. Reservasi: '
-                + booking
-                + '</div>';
         }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Fallback jika library QR gagal dimuat
+        |--------------------------------------------------------------------------
+        */
+        const fallback =
+            document.createElement('div');
+
+        fallback.className =
+            'nadi-detail-qr-fallback';
+
+        fallback.style.display =
+            'flex';
+
+        fallback.textContent =
+            'QR Code tidak dapat dibuat. No. Reservasi: '
+            + booking;
+
+        qrCodeEl.appendChild(
+            fallback
+        );
     }
 
     function populateDetail(data) {
         data = data || {};
 
-        const bookingFromCard =
-            document.getElementById(
-                'kontrol-booking-value'
-            );
-
         const booking =
             data.noreservasi
             || data.kodebooking
             || data.kode_booking
-            || (
-                bookingFromCard
-                    ? bookingFromCard.textContent.trim()
-                    : ''
-            )
             || '-';
 
         const doctor =
@@ -4030,158 +2848,4 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     </script>
 @endif
-
-
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    const checkButton = document.getElementById('kontrol-bpjs-check');
-    const backdrop = document.getElementById('bpjs-control-backdrop');
-    const closeButton = document.getElementById('bpjs-control-close');
-    const loading = document.getElementById('bpjs-control-loading');
-    const statusBox = document.getElementById('bpjs-control-status');
-    const statusIcon = document.getElementById('bpjs-control-status-icon');
-    const statusTitle = document.getElementById('bpjs-control-status-title');
-    const statusMessage = document.getElementById('bpjs-control-status-message');
-    const resultBox = document.getElementById('bpjs-control-result');
-    const resultNote = document.getElementById('bpjs-result-note');
-
-    if (!checkButton || !backdrop || !closeButton) return;
-
-    const fields = {
-        noSurat: document.getElementById('bpjs-result-no-surat'),
-        noKartu: document.getElementById('bpjs-result-no-kartu'),
-        tanggal: document.getElementById('bpjs-result-tanggal'),
-        poli: document.getElementById('bpjs-result-poli'),
-        dokter: document.getElementById('bpjs-result-dokter'),
-        jenis: document.getElementById('bpjs-result-jenis'),
-        terbit: document.getElementById('bpjs-result-terbit'),
-        sep: document.getElementById('bpjs-result-sep'),
-        metode: document.getElementById('bpjs-result-metode')
-    };
-
-    function setText(el, value) {
-        if (!el) return;
-        el.textContent = value === null || value === undefined || String(value).trim() === '' ? '-' : String(value);
-    }
-
-    function resetModal() {
-        loading?.classList.remove('is-visible');
-        statusBox?.classList.remove('is-visible','is-success','is-warning','is-danger');
-        resultBox?.classList.remove('is-visible');
-        if (resultNote) { resultNote.classList.remove('is-visible'); resultNote.textContent = ''; }
-        Object.values(fields).forEach(el => setText(el, '-'));
-    }
-
-    function openModal() {
-        backdrop.classList.add('is-open');
-        document.body.style.overflow = 'hidden';
-    }
-
-    function closeModal() {
-        backdrop.classList.remove('is-open');
-        document.body.style.overflow = '';
-        checkButton.focus();
-    }
-
-    function showStatus(type, title, message) {
-        if (!statusBox) return;
-        statusBox.classList.remove('is-success','is-warning','is-danger');
-        const t = ['success','warning','danger'].includes(type) ? type : 'warning';
-        statusBox.classList.add('is-visible','is-' + t);
-        if (statusIcon) statusIcon.textContent = t === 'success' ? '✓' : (t === 'danger' ? '×' : '!');
-        setText(statusTitle, title);
-        setText(statusMessage, message);
-    }
-
-    function formatDate(value) {
-        if (!value) return '-';
-        const raw = String(value).substring(0,10);
-        const date = new Date(raw + 'T00:00:00');
-        if (Number.isNaN(date.getTime())) return raw;
-        return new Intl.DateTimeFormat('id-ID',{day:'2-digit',month:'long',year:'numeric'}).format(date);
-    }
-
-    function showResponse(payload) {
-        loading?.classList.remove('is-visible');
-        const found = payload?.found === true;
-        const match = payload?.match === true;
-        const success = payload?.success === true;
-        const data = payload?.data || {};
-
-        if (!success || !found) {
-            showStatus('danger','Surat kontrol belum ditemukan',payload?.message || 'Data Surat Kontrol BPJS tidak ditemukan.');
-            resultBox?.classList.remove('is-visible');
-            return;
-        }
-
-        showStatus(
-            match ? 'success' : 'warning',
-            match ? 'Surat kontrol sesuai' : 'Surat kontrol ditemukan',
-            payload?.message || (match ? 'Data Surat Kontrol BPJS sesuai dengan reservasi.' : 'Ada data yang tidak sesuai dengan reservasi.')
-        );
-
-        setText(fields.noSurat, data.noSuratKontrol);
-        setText(fields.noKartu, data.noKartu);
-        setText(fields.tanggal, formatDate(data.tglRencanaKontrol));
-        setText(fields.poli, [data.kodePoli,data.namaPoli].filter(Boolean).join(' - '));
-        setText(fields.dokter, [data.kodeDokter,data.namaDokter].filter(Boolean).join(' - '));
-        setText(fields.jenis, data.jenisKontrolLabel || data.jnsKontrol);
-        setText(fields.terbit, formatDate(data.tglTerbitKontrol));
-        setText(fields.sep, data.noSepAsalKontrol);
-        setText(fields.metode, payload?.metode_label || payload?.source || '-');
-
-        if (resultNote) {
-            const note = payload?.warning || payload?.note || '';
-            resultNote.textContent = note;
-            resultNote.classList.toggle('is-visible', Boolean(note));
-        }
-        resultBox?.classList.add('is-visible');
-    }
-
-    async function checkSuratKontrol() {
-        const url = checkButton.dataset.checkUrl || '';
-        openModal();
-        resetModal();
-
-        if (!url) {
-            showStatus(
-                'warning',
-                'Data kontrol belum lengkap',
-                'Nomor Kartu BPJS sudah tersedia, tetapi tanggal reservasi atau kode poli subspesialis BPJS belum ikut dikirim dari data kontrol. Pastikan endpoint kontrol berikutnya mengembalikan tanggalreservasi dan kodepolisubspesialis.'
-            );
-            return;
-        }
-
-        loading?.classList.add('is-visible');
-        checkButton.disabled = true;
-
-        try {
-            const response = await fetch(url, {
-                method:'GET',
-                headers:{'Accept':'application/json','X-Requested-With':'XMLHttpRequest'},
-                credentials:'same-origin',
-                cache:'no-store'
-            });
-            let payload;
-            try { payload = await response.json(); }
-            catch (e) { throw new Error('Respons cek Surat Kontrol bukan JSON.'); }
-            if (!response.ok) throw new Error(payload?.message || 'Gagal memeriksa Surat Kontrol BPJS.');
-            showResponse(payload || {});
-        } catch (error) {
-            loading?.classList.remove('is-visible');
-            showStatus('danger','Gagal memeriksa BPJS',error?.message || 'Terjadi gangguan saat menghubungi layanan BPJS.');
-        } finally {
-            checkButton.disabled = false;
-        }
-    }
-
-    checkButton.addEventListener('click', checkSuratKontrol);
-    closeButton.addEventListener('click', closeModal);
-    backdrop.addEventListener('click', e => { if (e.target === backdrop) closeModal(); });
-    document.addEventListener('keydown', e => {
-        if (e.key === 'Escape' && backdrop.classList.contains('is-open')) closeModal();
-    });
-});
-</script>
-
 @endsection

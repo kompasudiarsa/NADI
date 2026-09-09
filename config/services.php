@@ -63,4 +63,14 @@ return [
         15
     ),
 ],
+'bpjs' => [
+    'vclaim_base_url' => env('BPJS_VCLAIM_BASE_URL'),
+    'antrean_base_url' => env('BPJS_ANTREAN_BASE_URL'),
+
+    'cons_id' => env('BPJS_CONS_ID'),
+    'secret_key' => env('BPJS_SECRET_KEY'),
+    'user_key' => env('BPJS_USER_KEY'),
+
+    'timeout' => env('BPJS_TIMEOUT_SECONDS', 15),
+],
 ];

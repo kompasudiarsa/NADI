@@ -40,22 +40,22 @@ class WaktuTungguController extends Controller
             ],
         ], [
             'rm.required' =>
-                'Nomor rekam medis wajib diisi.',
+            'Nomor rekam medis wajib diisi.',
 
             'tanggal_lahir.required' =>
-                'Tanggal lahir wajib diisi.',
+            'Tanggal lahir wajib diisi.',
 
             'tanggal_lahir.date_format' =>
-                'Format tanggal lahir tidak valid.',
+            'Format tanggal lahir tidak valid.',
 
             'captcha.required' =>
-                'Verifikasi keamanan wajib diisi.',
+            'Verifikasi keamanan wajib diisi.',
 
             'captcha.integer' =>
-                'Jawaban verifikasi harus berupa angka.',
+            'Jawaban verifikasi harus berupa angka.',
 
             'captcha_token.required' =>
-                'Verifikasi keamanan tidak valid. Silakan muat ulang halaman.',
+            'Verifikasi keamanan tidak valid. Silakan muat ulang halaman.',
         ]);
 
         /*
@@ -104,7 +104,7 @@ class WaktuTungguController extends Controller
                     )
                     ->withErrors([
                         'captcha' =>
-                            'Verifikasi keamanan telah kedaluwarsa. Silakan coba kembali.',
+                        'Verifikasi keamanan telah kedaluwarsa. Silakan coba kembali.',
                     ]);
             }
 
@@ -129,7 +129,7 @@ class WaktuTungguController extends Controller
                     )
                     ->withErrors([
                         'captcha' =>
-                            'Jawaban verifikasi keamanan tidak sesuai.',
+                        'Jawaban verifikasi keamanan tidak sesuai.',
                     ]);
             }
         } catch (Throwable $e) {
@@ -142,7 +142,7 @@ class WaktuTungguController extends Controller
                 )
                 ->withErrors([
                     'captcha' =>
-                        'Verifikasi keamanan tidak valid atau telah kedaluwarsa. Silakan coba kembali.',
+                    'Verifikasi keamanan tidak valid atau telah kedaluwarsa. Silakan coba kembali.',
                 ]);
         }
 
@@ -255,8 +255,8 @@ class WaktuTungguController extends Controller
 
                 $patient['reservation_raw'] =
                     is_array($reservation)
-                        ? $reservation
-                        : null;
+                    ? $reservation
+                    : null;
             }
         } catch (Throwable $e) {
             report($e);
@@ -333,7 +333,7 @@ class WaktuTungguController extends Controller
                 ->route('queue.home')
                 ->withErrors([
                     'validasi' =>
-                        'Silakan masuk kembali menggunakan nomor rekam medis dan tanggal lahir.',
+                    'Silakan masuk kembali menggunakan nomor rekam medis dan tanggal lahir.',
                 ]);
         }
 
@@ -405,8 +405,8 @@ class WaktuTungguController extends Controller
 
                 $patient['reservation_raw'] =
                     is_array($reservation)
-                        ? $reservation
-                        : null;
+                    ? $reservation
+                    : null;
 
                 session([
                     'pasien' => $patient,
@@ -425,7 +425,7 @@ class WaktuTungguController extends Controller
             'layanan.menu',
             [
                 'nextAppointment' =>
-                    $nextAppointment,
+                $nextAppointment,
             ]
         );
     }
@@ -457,7 +457,7 @@ class WaktuTungguController extends Controller
             return response()->json([
                 'success' => false,
                 'message' =>
-                    'Session pasien tidak tersedia.',
+                'Session pasien tidak tersedia.',
             ], 401);
         }
 
@@ -520,8 +520,8 @@ class WaktuTungguController extends Controller
 
             $patient['reservation_raw'] =
                 is_array($reservation)
-                    ? $reservation
-                    : null;
+                ? $reservation
+                : null;
 
             session([
                 'pasien' => $patient,
@@ -535,15 +535,15 @@ class WaktuTungguController extends Controller
                 | false = API berhasil, tetapi tidak ada kontrol
                 */
                 'has_appointment' =>
-                    $appointment !== null,
+                $appointment !== null,
 
                 'data' =>
-                    $appointment,
+                $appointment,
 
                 'refreshed_at' =>
-                    now()->format(
-                        'Y-m-d H:i:s'
-                    ),
+                now()->format(
+                    'Y-m-d H:i:s'
+                ),
             ]);
         } catch (Throwable $e) {
             report($e);
@@ -551,7 +551,7 @@ class WaktuTungguController extends Controller
             return response()->json([
                 'success' => false,
                 'message' =>
-                    'Data kontrol berikutnya gagal diperbarui.',
+                'Data kontrol berikutnya gagal diperbarui.',
             ], 500);
         }
     }
@@ -674,7 +674,11 @@ class WaktuTungguController extends Controller
                 $reservation,
                 'namaruangan'
             ),
-
+            'kodepolisubspesialis' =>
+            data_get(
+                $reservation,
+                'kodepolisubspesialis'
+            ),
             /*
             |--------------------------------------------------------------------------
             | Status Reservasi dan Pasien
@@ -774,6 +778,16 @@ class WaktuTungguController extends Controller
             'nobpjs' => data_get(
                 $reservation,
                 'nobpjs'
+            ),
+
+            'nosuratkontrol' => data_get(
+                $reservation,
+                'nosuratkontrol'
+            ),
+
+            'norujukan' => data_get(
+                $reservation,
+                'norujukan'
             ),
         ];
     }

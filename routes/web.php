@@ -8,12 +8,19 @@ use App\Http\Controllers\ReservationController;
 use App\Http\Controllers\VideoEdukasiController;
 use App\Http\Controllers\WaktuTungguController;
 use Illuminate\Support\Facades\Route;
-
+use App\Http\Controllers\SuratKontrolBPJSController;
 /*
 |--------------------------------------------------------------------------
 | Halaman Awal / Login Pasien
 |--------------------------------------------------------------------------
 */
+
+
+
+Route::get(
+    '/cek-surat-kontrol',
+    [SuratKontrolBPJSController::class, 'check']
+)->name('bpjs.surat-kontrol.check');
 Route::get(
     '/',
     [PublicQueueApiController::class, 'home']
