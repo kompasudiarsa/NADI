@@ -353,6 +353,59 @@
         ? data_get($appointment, 'class_statusperiksa', 'is-info')
         : 'is-info';
 
+    /*
+    |--------------------------------------------------------------------------
+    | Informasi Resep / Farmasi
+    |--------------------------------------------------------------------------
+    | A = Non Racikan
+    | B = Racikan
+    */
+    $appointmentHasPrescription = $appointment
+        ? (
+            (bool) data_get($appointment, 'ada_resep', false)
+            || !empty(data_get($appointment, 'status_resep'))
+            || !empty(data_get($appointment, 'statusorder'))
+            || !empty(data_get($appointment, 'noantrian_resep'))
+            || !empty(data_get($appointment, 'aanoantri'))
+            || !empty(data_get($appointment, 'jenis_resep'))
+            || !empty(data_get($appointment, 'aajenis'))
+        )
+        : false;
+
+    $appointmentPrescriptionStatus = $appointment
+        ? data_get(
+            $appointment,
+            'status_resep',
+            data_get($appointment, 'statusorder')
+        )
+        : null;
+
+    $appointmentPrescriptionCode = $appointment
+        ? strtoupper(trim((string) data_get($appointment, 'aajenis', '')))
+        : '';
+
+    $appointmentPrescriptionType = $appointment
+        ? data_get($appointment, 'jenis_resep')
+        : null;
+
+    if (!$appointmentPrescriptionType) {
+        if ($appointmentPrescriptionCode === 'A') {
+            $appointmentPrescriptionType = 'Non Racikan';
+        } elseif ($appointmentPrescriptionCode === 'B') {
+            $appointmentPrescriptionType = 'Racikan';
+        } elseif ($appointmentPrescriptionCode !== '') {
+            $appointmentPrescriptionType = $appointmentPrescriptionCode;
+        }
+    }
+
+    $appointmentPharmacyQueue = $appointment
+        ? data_get(
+            $appointment,
+            'noantrian_resep',
+            data_get($appointment, 'aanoantri')
+        )
+        : null;
+
     $appointmentAllUrl = $routeOrUrl('reservation.index', '/cek-reservasi');
 
     $appointmentRefreshUrl = Route::has('layanan.kontrol-berikutnya.refresh')
@@ -949,6 +1002,63 @@
             max-width: 118px;
             font-size: 7.7px;
         }
+    }
+
+    /* Informasi Farmasi */
+    .nadi-pharmacy-info-line {
+        margin-top: 10px;
+    }
+
+    .nadi-pharmacy-info-line .nadi-info-icon {
+        background: #eafaf1;
+        color: var(--nadi-green);
+    }
+
+    .nadi-pharmacy-content {
+        min-width: 0;
+    }
+
+    .nadi-pharmacy-title {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .nadi-pharmacy-badge {
+        display: inline-flex;
+        align-items: center;
+        padding: 3px 7px;
+        border-radius: 999px;
+        background: #eafaf1;
+        color: #118148;
+        font-size: 8px;
+        font-weight: 900;
+        line-height: 1.2;
+    }
+
+    .nadi-pharmacy-detail {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 10px;
+        margin-top: 3px;
+    }
+
+    .nadi-pharmacy-detail-item {
+        color: var(--nadi-muted);
+        font-size: 10px;
+        font-weight: 700;
+        line-height: 1.35;
+    }
+
+    .nadi-pharmacy-detail-item strong {
+        color: #19386f;
+        font-weight: 900;
+    }
+
+    .nadi-pharmacy-status {
+        color: #118148 !important;
+        font-weight: 900 !important;
     }
 
     .nadi-booking-info-line {
@@ -1991,6 +2101,54 @@
                             </div>
                         </div>
 
+                        {{-- Informasi Resep / Farmasi --}}
+                        <div
+                            id="kontrol-farmasi"
+                            class="nadi-info-line nadi-pharmacy-info-line"
+                            @if(!$appointmentHasPrescription) style="display:none;" @endif
+                        >
+                            <div class="nadi-info-icon">
+                                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                    <path d="M8.5 4.5H15.5C16.3 4.5 17 5.2 17 6V8H7V6C7 5.2 7.7 4.5 8.5 4.5Z" stroke="currentColor" stroke-width="1.8"/>
+                                    <rect x="6" y="8" width="12" height="12" rx="2.5" stroke="currentColor" stroke-width="1.8"/>
+                                    <path d="M12 11V17M9 14H15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                                </svg>
+                            </div>
+
+                            <div class="nadi-pharmacy-content">
+                                <div class="nadi-pharmacy-title">
+                                    <div class="nadi-info-primary">Farmasi</div>
+
+                                    <span
+                                        id="kontrol-farmasi-jenis"
+                                        class="nadi-pharmacy-badge"
+                                        @if(!$appointmentPrescriptionType) style="display:none;" @endif
+                                    >
+                                        {{ $appointmentPrescriptionType ?: '' }}
+                                    </span>
+                                </div>
+
+                                <div class="nadi-pharmacy-detail">
+                                    <div class="nadi-pharmacy-detail-item">
+                                        No. Antrean:
+                                        <strong id="kontrol-farmasi-antrean">
+                                            {{ $appointmentPharmacyQueue ?: '-' }}
+                                        </strong>
+                                    </div>
+
+                                    <div class="nadi-pharmacy-detail-item">
+                                        Status:
+                                        <strong
+                                            id="kontrol-farmasi-status"
+                                            class="nadi-pharmacy-status"
+                                        >
+                                            {{ $appointmentPrescriptionStatus ?: '-' }}
+                                        </strong>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         {{-- Kode Booking / Nomor Reservasi --}}
                         <div
                             id="kontrol-booking"
@@ -2211,6 +2369,21 @@
                             <div class="nadi-detail-item">
                                 <div class="nadi-detail-label">No. Antrean Poli</div>
                                 <div id="detail-no-antrean" class="nadi-detail-value">-</div>
+                            </div>
+
+                            <div class="nadi-detail-item">
+                                <div class="nadi-detail-label">Jenis Resep</div>
+                                <div id="detail-jenis-resep" class="nadi-detail-value">-</div>
+                            </div>
+
+                            <div class="nadi-detail-item">
+                                <div class="nadi-detail-label">No. Antrean Farmasi</div>
+                                <div id="detail-antrean-farmasi" class="nadi-detail-value">-</div>
+                            </div>
+
+                            <div class="nadi-detail-item is-wide">
+                                <div class="nadi-detail-label">Status Resep / Farmasi</div>
+                                <div id="detail-status-resep" class="nadi-detail-value is-status">-</div>
                             </div>
 
                             <div class="nadi-detail-item is-wide">
@@ -3176,6 +3349,11 @@ document.addEventListener('DOMContentLoaded', function () {
     const bookingEl = document.getElementById('kontrol-booking');
     const bookingValueEl = document.getElementById('kontrol-booking-value');
 
+    const pharmacyEl = document.getElementById('kontrol-farmasi');
+    const pharmacyTypeEl = document.getElementById('kontrol-farmasi-jenis');
+    const pharmacyQueueEl = document.getElementById('kontrol-farmasi-antrean');
+    const pharmacyStatusEl = document.getElementById('kontrol-farmasi-status');
+
     const bpjsCheckBaseUrl = section.dataset.bpjsCheckBaseUrl || '';
 
     const defaultDoctorPhoto = fotoDokterEl
@@ -3401,6 +3579,66 @@ document.addEventListener('DOMContentLoaded', function () {
 
             statusPasienEl.classList.add(patientStatusClass);
             statusPasienEl.style.display = patientStatus ? 'inline-flex' : 'none';
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Resep / Farmasi
+        |--------------------------------------------------------------------------
+        */
+        const hasPrescription = Boolean(
+            data.ada_resep
+            || data.status_resep
+            || data.statusorder
+            || data.noantrian_resep
+            || data.aanoantri
+            || data.jenis_resep
+            || data.aajenis
+        );
+
+        let prescriptionType = data.jenis_resep || '';
+
+        if (!prescriptionType) {
+            const prescriptionCode = String(data.aajenis || '')
+                .trim()
+                .toUpperCase();
+
+            if (prescriptionCode === 'A') {
+                prescriptionType = 'Non Racikan';
+            } else if (prescriptionCode === 'B') {
+                prescriptionType = 'Racikan';
+            } else {
+                prescriptionType = prescriptionCode;
+            }
+        }
+
+        const prescriptionStatus = data.status_resep
+            || data.statusorder
+            || '-';
+
+        const pharmacyQueue = data.noantrian_resep
+            || data.aanoantri
+            || '-';
+
+        if (pharmacyEl) {
+            pharmacyEl.style.display = hasPrescription
+                ? 'grid'
+                : 'none';
+        }
+
+        if (pharmacyTypeEl) {
+            pharmacyTypeEl.textContent = prescriptionType || '';
+            pharmacyTypeEl.style.display = prescriptionType
+                ? 'inline-flex'
+                : 'none';
+        }
+
+        if (pharmacyQueueEl) {
+            pharmacyQueueEl.textContent = pharmacyQueue;
+        }
+
+        if (pharmacyStatusEl) {
+            pharmacyStatusEl.textContent = prescriptionStatus;
         }
 
         /*
@@ -3707,6 +3945,9 @@ document.addEventListener('DOMContentLoaded', function () {
         serviceStatus: document.getElementById('detail-status-pelayanan'),
         registrationNumber: document.getElementById('detail-no-registrasi'),
         queueNumber: document.getElementById('detail-no-antrean'),
+        prescriptionType: document.getElementById('detail-jenis-resep'),
+        pharmacyQueue: document.getElementById('detail-antrean-farmasi'),
+        prescriptionStatus: document.getElementById('detail-status-resep'),
         referralNumber: document.getElementById('detail-no-rujukan')
     };
 
@@ -3917,6 +4158,42 @@ document.addEventListener('DOMContentLoaded', function () {
             || data.noantrian
             || '-'
         );
+
+        let prescriptionType = data.jenis_resep || '';
+
+        if (!prescriptionType) {
+            const prescriptionCode = String(data.aajenis || '')
+                .trim()
+                .toUpperCase();
+
+            if (prescriptionCode === 'A') {
+                prescriptionType = 'Non Racikan';
+            } else if (prescriptionCode === 'B') {
+                prescriptionType = 'Racikan';
+            } else {
+                prescriptionType = prescriptionCode;
+            }
+        }
+
+        setValue(
+            fields.prescriptionType,
+            prescriptionType || '-'
+        );
+
+        setValue(
+            fields.pharmacyQueue,
+            data.noantrian_resep
+            || data.aanoantri
+            || '-'
+        );
+
+        setValue(
+            fields.prescriptionStatus,
+            data.status_resep
+            || data.statusorder
+            || '-'
+        );
+
         setValue(
             fields.referralNumber,
             data.norujukan || '-'

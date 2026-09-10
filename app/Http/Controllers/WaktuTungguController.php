@@ -605,192 +605,373 @@ class WaktuTungguController extends Controller
      * oleh Blade menu NADI.
      */
     private function normalizeNextAppointment(
-        $reservation
-    ): ?array {
-        if (
-            ! is_array($reservation) ||
-            empty($reservation)
-        ) {
-            return null;
-        }
+    $reservation
+): ?array {
 
-        return [
-            /*
-            |--------------------------------------------------------------------------
-            | Identitas Reservasi
-            |--------------------------------------------------------------------------
-            */
-            'norec' => data_get(
-                $reservation,
-                'norec'
-            ),
+    if (
+        ! is_array($reservation) ||
+        empty($reservation)
+    ) {
+        return null;
+    }
 
-            'noreservasi' => data_get(
+    /*
+    |--------------------------------------------------------------------------
+    | Jenis Resep
+    |--------------------------------------------------------------------------
+    |
+    | A = Non Racikan
+    | B = Racikan
+    |
+    */
+    $kodeJenisResep = strtoupper(
+        trim(
+            (string) data_get(
                 $reservation,
-                'noreservasi'
-            ),
+                'aajenis',
+                ''
+            )
+        )
+    );
 
-            /*
-            |--------------------------------------------------------------------------
-            | Jadwal
-            |--------------------------------------------------------------------------
-            */
-            'tanggalreservasi' => data_get(
-                $reservation,
-                'tanggalreservasi'
-            ),
+    $jenisResep = match ($kodeJenisResep) {
+        'A' => 'Non Racikan',
+        'B' => 'Racikan',
+        default => $kodeJenisResep !== ''
+            ? $kodeJenisResep
+            : null,
+    };
 
-            'jam' => data_get(
-                $reservation,
-                'jamreservasi'
-            ),
+    /*
+    |--------------------------------------------------------------------------
+    | Status Resep
+    |--------------------------------------------------------------------------
+    */
+    $statusResep = data_get(
+        $reservation,
+        'statusorder',
+        data_get(
+            $reservation,
+            'status_resep'
+        )
+    );
 
-            'jamreservasi' => data_get(
-                $reservation,
-                'jamreservasi'
-            ),
+    return [
 
-            /*
-            |--------------------------------------------------------------------------
-            | Dokter / Poli / Lokasi
-            |--------------------------------------------------------------------------
-            */
-            'dokter' => data_get(
-                $reservation,
-                'dokter'
-            ),
+        /*
+        |--------------------------------------------------------------------------
+        | Identitas Reservasi
+        |--------------------------------------------------------------------------
+        */
+        'norec' => data_get(
+            $reservation,
+            'norec'
+        ),
 
-            'poli' => data_get(
-                $reservation,
-                'namaruangan'
-            ),
+        'noreservasi' => data_get(
+            $reservation,
+            'noreservasi'
+        ),
 
-            'namaruangan' => data_get(
-                $reservation,
-                'namaruangan'
-            ),
+        /*
+        |--------------------------------------------------------------------------
+        | Jadwal
+        |--------------------------------------------------------------------------
+        */
+        'tanggalreservasi' => data_get(
+            $reservation,
+            'tanggalreservasi'
+        ),
 
-            'lokasi' => data_get(
-                $reservation,
-                'namaruangan'
-            ),
-            'kodepolisubspesialis' =>
+        'jam' => data_get(
+            $reservation,
+            'jamreservasi'
+        ),
+
+        'jamreservasi' => data_get(
+            $reservation,
+            'jamreservasi'
+        ),
+
+        /*
+        |--------------------------------------------------------------------------
+        | Dokter / Poli / Lokasi
+        |--------------------------------------------------------------------------
+        */
+        'dokter' => data_get(
+            $reservation,
+            'dokter'
+        ),
+
+        'poli' => data_get(
+            $reservation,
+            'namaruangan'
+        ),
+
+        'namaruangan' => data_get(
+            $reservation,
+            'namaruangan'
+        ),
+
+        'lokasi' => data_get(
+            $reservation,
+            'namaruangan'
+        ),
+
+        'kodepolisubspesialis' => data_get(
+            $reservation,
+            'kodepolisubspesialis'
+        ),
+
+        /*
+        |--------------------------------------------------------------------------
+        | Status Reservasi dan Pasien
+        |--------------------------------------------------------------------------
+        */
+        'status' => data_get(
+            $reservation,
+            'status'
+        ),
+
+        'status_pasien' => data_get(
+            $reservation,
+            'status_pasien'
+        ),
+
+        'status_registrasi' => data_get(
+            $reservation,
+            'status_registrasi'
+        ),
+
+        'sudah_teregistrasi' => data_get(
+            $reservation,
+            'sudah_teregistrasi',
+            false
+        ),
+
+        'asal_registrasi' => data_get(
+            $reservation,
+            'asal_registrasi'
+        ),
+
+        'label_statusperiksa' => data_get(
+            $reservation,
+            'label_statusperiksa'
+        ),
+
+        'class_statusperiksa' => data_get(
+            $reservation,
+            'class_statusperiksa'
+        ),
+
+        'status_asli' => data_get(
+            $reservation,
+            'status_asli'
+        ),
+
+        /*
+        |--------------------------------------------------------------------------
+        | RESEP / APOTEK
+        |--------------------------------------------------------------------------
+        */
+
+        /*
+        | Sudah memiliki resep atau belum
+        */
+        'ada_resep' => (bool) data_get(
+            $reservation,
+            'ada_resep',
+            false
+        ),
+
+        /*
+        | Nomor antrean apotek
+        */
+        'aanoantri' => data_get(
+            $reservation,
+            'aanoantri'
+        ),
+
+        'noantrian_resep' => data_get(
+            $reservation,
+            'aanoantri'
+        ),
+
+        /*
+        | Kode asli jenis resep:
+        | A / B
+        */
+        'aajenis' => $kodeJenisResep !== ''
+            ? $kodeJenisResep
+            : null,
+
+        'kode_jenis_resep' => $kodeJenisResep !== ''
+            ? $kodeJenisResep
+            : null,
+
+        /*
+        | Label jenis resep:
+        | A = Non Racikan
+        | B = Racikan
+        */
+        'jenis_resep' => $jenisResep,
+
+        /*
+        | Status order resep
+        | Contoh: Siap Diserahkan
+        */
+        'status_resep' => $statusResep,
+
+        'statusorder' => $statusResep,
+
+        /*
+        | ID status resep
+        */
+        'status_order_id' => data_get(
+            $reservation,
+            'status_order_id'
+        ),
+
+        /*
+        | Tanggal resep
+        */
+        'tglresep' => data_get(
+            $reservation,
+            'tglresep'
+        ),
+
+        /*
+        | Semua resep jika lebih dari satu
+        */
+        'riwayat_resep' => collect(
             data_get(
                 $reservation,
-                'kodepolisubspesialis'
-            ),
-            /*
-            |--------------------------------------------------------------------------
-            | Status Reservasi dan Pasien
-            |--------------------------------------------------------------------------
-            */
-            'status' => data_get(
-                $reservation,
-                'status'
-            ),
+                'riwayat_resep',
+                []
+            )
+        )
+            ->map(function ($item) {
 
-            'status_pasien' => data_get(
-                $reservation,
-                'status_pasien'
-            ),
+                $kode = strtoupper(
+                    trim(
+                        (string) data_get(
+                            $item,
+                            'aajenis',
+                            ''
+                        )
+                    )
+                );
 
-            'status_registrasi' => data_get(
-                $reservation,
-                'status_registrasi'
-            ),
+                $jenis = match ($kode) {
+                    'A' => 'Non Racikan',
+                    'B' => 'Racikan',
+                    default => $kode !== ''
+                        ? $kode
+                        : null,
+                };
 
-            'sudah_teregistrasi' => data_get(
-                $reservation,
-                'sudah_teregistrasi',
-                false
-            ),
+                return [
+                    'aanoantri' => data_get(
+                        $item,
+                        'aanoantri'
+                    ),
 
-            'asal_registrasi' => data_get(
-                $reservation,
-                'asal_registrasi'
-            ),
+                    'aajenis' => $kode !== ''
+                        ? $kode
+                        : null,
 
-            'label_statusperiksa' => data_get(
-                $reservation,
-                'label_statusperiksa'
-            ),
+                    'jenis_resep' => $jenis,
 
-            'class_statusperiksa' => data_get(
-                $reservation,
-                'class_statusperiksa'
-            ),
+                    'status_order_id' => data_get(
+                        $item,
+                        'status_order_id'
+                    ),
 
-            'status_asli' => data_get(
-                $reservation,
-                'status_asli'
-            ),
+                    'statusorder' => data_get(
+                        $item,
+                        'statusorder'
+                    ),
 
-            /*
-            |--------------------------------------------------------------------------
-            | Antrean
-            |--------------------------------------------------------------------------
-            */
-            'noantrian' => data_get(
-                $reservation,
-                'noantrian'
-            ),
+                    'status_resep' => data_get(
+                        $item,
+                        'statusorder'
+                    ),
 
-            'noantrianpoli' => data_get(
-                $reservation,
-                'noantrianpoli'
-            ),
+                    'tglresep' => data_get(
+                        $item,
+                        'tglresep'
+                    ),
+                ];
+            })
+            ->values()
+            ->all(),
 
-            'loketkiosk' => data_get(
-                $reservation,
-                'loketkiosk'
-            ),
+        /*
+        |--------------------------------------------------------------------------
+        | Antrean
+        |--------------------------------------------------------------------------
+        */
+        'noantrian' => data_get(
+            $reservation,
+            'noantrian'
+        ),
 
-            /*
-            |--------------------------------------------------------------------------
-            | Registrasi
-            |--------------------------------------------------------------------------
-            */
-            'noregistrasi' => data_get(
-                $reservation,
-                'noregistrasi'
-            ),
+        'noantrianpoli' => data_get(
+            $reservation,
+            'noantrianpoli'
+        ),
 
-            'norec_pd' => data_get(
-                $reservation,
-                'norec_pd'
-            ),
+        'loketkiosk' => data_get(
+            $reservation,
+            'loketkiosk'
+        ),
 
-            'norec_apd' => data_get(
-                $reservation,
-                'norec_apd'
-            ),
+        /*
+        |--------------------------------------------------------------------------
+        | Registrasi
+        |--------------------------------------------------------------------------
+        */
+        'noregistrasi' => data_get(
+            $reservation,
+            'noregistrasi'
+        ),
 
-            /*
-            |--------------------------------------------------------------------------
-            | Penjamin
-            |--------------------------------------------------------------------------
-            */
-            'kelompokpasien' => data_get(
-                $reservation,
-                'kelompokpasien'
-            ),
+        'norec_pd' => data_get(
+            $reservation,
+            'norec_pd'
+        ),
 
-            'nobpjs' => data_get(
-                $reservation,
-                'nobpjs'
-            ),
+        'norec_apd' => data_get(
+            $reservation,
+            'norec_apd'
+        ),
 
-            'nosuratkontrol' => data_get(
-                $reservation,
-                'nosuratkontrol'
-            ),
+        /*
+        |--------------------------------------------------------------------------
+        | Penjamin
+        |--------------------------------------------------------------------------
+        */
+        'kelompokpasien' => data_get(
+            $reservation,
+            'kelompokpasien'
+        ),
 
-            'norujukan' => data_get(
-                $reservation,
-                'norujukan'
-            ),
-        ];
-    }
+        'nobpjs' => data_get(
+            $reservation,
+            'nobpjs'
+        ),
+
+        'nosuratkontrol' => data_get(
+            $reservation,
+            'nosuratkontrol'
+        ),
+
+        'norujukan' => data_get(
+            $reservation,
+            'norujukan'
+        ),
+    ];
+}
 
     /**
      * Menghapus identitas pasien dari session.
