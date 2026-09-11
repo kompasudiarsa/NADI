@@ -1,6 +1,21 @@
 @extends('layouts.app', ['title' => 'NADI RSBM | RSUD Bali Mandara Provinsi Bali'])
 
 @section('content')
+
+{{-- Fallback viewport untuk memastikan media query mobile bekerja di browser HP.
+     Idealnya meta viewport juga ada di <head> layouts.app. --}}
+<script>
+(function () {
+    var viewport = document.querySelector('meta[name="viewport"]');
+    if (!viewport) {
+        viewport = document.createElement('meta');
+        viewport.name = 'viewport';
+        viewport.content = 'width=device-width, initial-scale=1, viewport-fit=cover';
+        document.head.appendChild(viewport);
+    }
+})();
+</script>
+
 @php
     /*
     |--------------------------------------------------------------------------
@@ -678,6 +693,60 @@
 @endphp
 
 <style>
+
+    /* =========================================================
+       RESET LAYOUT.APP
+       Hilangkan navbar/padding bawaan layout pada bagian atas.
+       Bottom navigation NADI tidak terpengaruh karena class berbeda.
+       ========================================================= */
+    html,
+    body {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    #app > nav.navbar,
+    #app > .navbar,
+    body > nav.navbar,
+    nav.navbar.navbar-expand-md,
+    .navbar.navbar-expand-md {
+        display: none !important;
+        height: 0 !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        box-shadow: none !important;
+    }
+
+    #app,
+    #app > main,
+    main.py-4,
+    .py-4 {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+
+    #app {
+        min-height: 100vh;
+    }
+
+    .content-wrapper,
+    .content,
+    .app-content,
+    .page-content,
+    .main-content {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+
+    .content-header {
+        display: none !important;
+        height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
     :root {
         --nadi-blue: #163a93;
         --nadi-blue-2: #1477ee;
@@ -992,6 +1061,7 @@
         text-align: center;
         line-height: 1.15;
     }
+
 
     @media (max-width: 420px) {
         .nadi-bpjs-info-head {
@@ -1745,20 +1815,85 @@
         font-weight: 900;
     }
 
-    @media (min-width: 700px) {
+    /* =========================================================
+       DESKTOP / PC
+       Gunakan seluruh lebar layar. Tidak dibungkus card/phone 520px.
+       ========================================================= */
+    @media (min-width: 768px) {
         .nadi-page {
-            padding-top: 34px;
-            padding-bottom: 44px;
+            position: relative;
+            left: 50%;
+            width: 100vw;
+            min-height: 100vh;
+            margin-left: -50vw;
+            padding: 26px clamp(24px, 3vw, 48px) 110px;
         }
 
         .nadi-phone {
-            border-radius: 32px;
+            width: 100%;
+            max-width: none;
+            margin: 0;
+            overflow: visible;
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            box-shadow: none;
         }
 
         .nadi-main {
-            padding: 26px 22px 108px;
+            width: 100%;
+            padding: 0;
+        }
+
+        .nadi-header {
+            margin-bottom: 20px;
+        }
+
+        .nadi-greeting-name {
+            max-width: min(520px, 45vw);
+        }
+
+        .nadi-appointment {
+            width: 100%;
+        }
+
+        .nadi-appointment-card {
+            grid-template-columns: minmax(0, 1fr) 100px;
+            min-height: 170px;
+            padding: 18px;
+        }
+
+        .nadi-doctor-photo,
+        .nadi-doctor-fallback {
+            width: 92px;
+            height: 92px;
+        }
+
+        .nadi-menu-grid {
+            grid-template-columns: repeat(6, minmax(0, 1fr));
+            gap: 14px;
+        }
+
+        .nadi-menu-card {
+            min-height: 120px;
+            padding: 14px 10px;
+        }
+
+        .nadi-menu-title {
+            font-size: 11px;
+        }
+
+        .nadi-bottom-nav {
+            width: 100vw;
         }
     }
+
+    @media (min-width: 768px) and (max-width: 1100px) {
+        .nadi-menu-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+    }
+
 
     @media (max-width: 420px) {
         .nadi-page {
@@ -1848,6 +1983,332 @@
 
         .nadi-greeting-name {
             max-width: 165px;
+        }
+    }
+
+
+    /* =========================================================
+       NADI DESKTOP DASHBOARD - PROFESSIONAL LAYOUT
+       Desktop: dua kolom 65/35, typography lebih terbaca,
+       bottom navigation hanya untuk mobile.
+       ========================================================= */
+    .nadi-services-panel {
+        min-width: 0;
+    }
+
+    .nadi-services-head {
+        margin-bottom: 12px;
+    }
+
+    .nadi-services-subtitle {
+        margin: 4px 0 0;
+        color: var(--nadi-muted);
+        font-size: 11px;
+        font-weight: 650;
+        line-height: 1.45;
+    }
+
+    .nadi-menu-description {
+        display: none;
+        color: var(--nadi-muted);
+        font-size: 11px;
+        font-weight: 650;
+        line-height: 1.45;
+    }
+
+    .nadi-appointment-secondary {
+        margin-top: 14px;
+        padding-top: 12px;
+        border-top: 1px dashed #dce7f2;
+    }
+
+    .nadi-secondary-heading {
+        margin-bottom: 9px;
+        color: #7890ad;
+        font-size: 9px;
+        font-weight: 950;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+    }
+
+    @media (min-width: 1024px) {
+        .nadi-page {
+            padding: 28px clamp(28px, 3vw, 56px) 44px;
+        }
+
+        .nadi-main {
+            display: grid;
+            grid-template-columns: minmax(0, 1.75fr) minmax(340px, .95fr);
+            gap: 24px 28px;
+            align-items: start;
+        }
+
+        .nadi-header {
+            grid-column: 1 / -1;
+            margin-bottom: 2px;
+            padding: 0 2px 18px;
+            border-bottom: 1px solid rgba(22, 58, 147, .08);
+        }
+
+        #kontrol-berikutnya {
+            grid-column: 1;
+            grid-row: 2;
+            margin: 0;
+            padding: 20px;
+            border-radius: 22px;
+        }
+
+        #menu-layanan {
+            grid-column: 2;
+            grid-row: 2;
+            margin: 0;
+            padding: 20px;
+            border: 1px solid #dfe8f2;
+            border-radius: 22px;
+            background: rgba(255,255,255,.96);
+            box-shadow: 0 10px 28px rgba(20,70,130,.055);
+        }
+
+        .nadi-section-title {
+            font-size: 18px;
+        }
+
+        .nadi-services-subtitle {
+            font-size: 12px;
+        }
+
+        .nadi-appointment-card {
+            grid-template-columns: minmax(0, 1fr) 118px;
+            gap: 20px;
+            min-height: 0;
+            padding: 20px;
+            border-radius: 18px;
+        }
+
+        .nadi-appointment-status,
+        .nadi-service-status {
+            font-size: 11px;
+        }
+
+        .nadi-info-line {
+            grid-template-columns: 36px minmax(0, 1fr);
+            gap: 11px;
+        }
+
+        .nadi-info-line + .nadi-info-line {
+            margin-top: 13px;
+        }
+
+        .nadi-info-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+        }
+
+        .nadi-info-primary {
+            font-size: 15px;
+            line-height: 1.35;
+        }
+
+        .nadi-info-secondary {
+            margin-top: 2px;
+            font-size: 12px;
+            line-height: 1.45;
+        }
+
+        .nadi-refresh-state,
+        .nadi-see-all {
+            font-size: 12px;
+        }
+
+        .nadi-doctor-photo,
+        .nadi-doctor-fallback {
+            width: 108px;
+            height: 108px;
+        }
+
+        .nadi-appointment-secondary {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+            margin-top: 18px;
+            padding-top: 14px;
+        }
+
+        .nadi-secondary-heading {
+            grid-column: 1 / -1;
+            margin-bottom: 0;
+            font-size: 10px;
+        }
+
+        .nadi-appointment-secondary > .nadi-info-line {
+            display: flex;
+            min-width: 0;
+            gap: 9px;
+            margin-top: 0 !important;
+            padding: 11px;
+            border: 1px solid #e5edf5;
+            border-radius: 13px;
+            background: #fbfdff;
+        }
+
+        .nadi-appointment-secondary .nadi-info-icon {
+            width: 30px;
+            height: 30px;
+            flex: 0 0 30px;
+        }
+
+        .nadi-appointment-secondary .nadi-info-primary {
+            font-size: 11.5px;
+        }
+
+        .nadi-appointment-secondary .nadi-info-secondary,
+        .nadi-pharmacy-detail-item {
+            font-size: 10.5px;
+        }
+
+        .nadi-bpjs-check-button,
+        .nadi-detail-button {
+            min-height: 30px;
+            font-size: 10px;
+        }
+
+        .nadi-menu-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .nadi-menu-card {
+            min-height: 152px;
+            align-items: flex-start;
+            justify-content: flex-start;
+            gap: 8px;
+            padding: 16px;
+            text-align: left;
+        }
+
+        .nadi-menu-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 14px;
+        }
+
+        .nadi-menu-title {
+            font-size: 14px;
+            line-height: 1.3;
+        }
+
+        .nadi-menu-description {
+            display: block;
+        }
+
+        /* Navigasi utama tetap tampil pada desktop. */
+        .nadi-bottom-nav {
+            position: fixed !important;
+            z-index: 99999 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            left: 0 !important;
+            display: grid !important;
+            width: 100% !important;
+            max-width: none !important;
+            grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+            transform: none !important;
+            border-top: 1px solid #e1e9f2 !important;
+            background: rgba(255, 255, 255, .97) !important;
+            box-shadow: 0 -7px 22px rgba(15, 45, 115, .08) !important;
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+        }
+
+        .nadi-bottom-link {
+            min-height: 66px;
+            flex-direction: row;
+            gap: 8px;
+            font-size: 12px;
+        }
+
+        .nadi-bottom-link svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .nadi-bottom-link.is-active::after {
+            right: 38%;
+            bottom: 5px;
+            left: 38%;
+        }
+
+        .nadi-main {
+            padding-bottom: 88px;
+        }
+
+        .nadi-detail-label {
+            font-size: 11px;
+        }
+
+        .nadi-detail-value {
+            font-size: 13px;
+        }
+    }
+
+    @media (min-width: 768px) and (max-width: 1023px) {
+        .nadi-menu-description {
+            display: none;
+        }
+
+        .nadi-menu-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+    }
+
+    /* =========================================================
+       MOBILE WEB FOOTER FIX
+       - paksa bottom navigation tampil pada HP/touch device
+       - aman untuk browser mobile/PWA dan safe-area iPhone
+       ========================================================= */
+    @media (max-width: 1023px), (hover: none) and (pointer: coarse) {
+        .nadi-bottom-nav {
+            position: fixed !important;
+            z-index: 99999 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            left: 0 !important;
+            display: grid !important;
+            width: 100% !important;
+            max-width: none !important;
+            grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+            transform: none !important;
+            padding-bottom: max(6px, env(safe-area-inset-bottom)) !important;
+            background: rgba(255, 255, 255, .98) !important;
+            box-shadow: 0 -8px 24px rgba(15, 45, 115, .12) !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            -webkit-transform: translateZ(0);
+            transform: translateZ(0);
+        }
+
+        .nadi-main {
+            padding-bottom: calc(100px + env(safe-area-inset-bottom)) !important;
+        }
+
+        .nadi-bottom-link {
+            min-width: 0;
+            min-height: 68px;
+        }
+    }
+
+    @media (max-width: 767px) {
+        .nadi-services-head {
+            margin: 4px 1px 10px;
+        }
+
+        .nadi-services-subtitle {
+            display: none;
+        }
+
+        .nadi-menu-description {
+            display: none;
         }
     }
 </style>
@@ -2025,6 +2486,9 @@
                                 </div>
                             </div>
                         </div>
+
+                        <div class="nadi-appointment-secondary">
+                            <div class="nadi-secondary-heading">Informasi Tambahan</div>
 
                         {{-- Surat Kontrol / Nomor Kartu BPJS --}}
                         <div
@@ -2205,6 +2669,7 @@
                                 </div>
                             </div>
                         </div>
+                        </div> {{-- /.nadi-appointment-secondary --}}
                     </div>
 
                     <div class="nadi-doctor-avatar">
@@ -2481,7 +2946,15 @@
             </div>
 
             {{-- Menu layanan --}}
-            <section id="menu-layanan" class="nadi-menu-grid" aria-label="Menu layanan pasien">
+            <section id="menu-layanan" class="nadi-services-panel" aria-label="Menu layanan pasien">
+                <div class="nadi-section-head nadi-services-head">
+                    <div>
+                        <h2 class="nadi-section-title">Layanan Pasien</h2>
+                        <p class="nadi-services-subtitle">Akses layanan rumah sakit yang Anda perlukan.</p>
+                    </div>
+                </div>
+
+                <div class="nadi-menu-grid">
                 @foreach($menus as $menu)
                     <a
                         href="{{ $menu['url'] }}"
@@ -2550,8 +3023,13 @@
                         <div class="nadi-menu-title">
                             {{ $menu['title'] }}
                         </div>
+
+                        <div class="nadi-menu-description">
+                            {{ $menu['description'] ?? '' }}
+                        </div>
                     </a>
                 @endforeach
+                </div>
             </section>
         </main>
 

@@ -10,223 +10,269 @@ use Illuminate\Pagination\LengthAwarePaginator;
 class RadiologyController extends Controller
 {
     public function index(Request $request, RadiologyApiService $radiology)
-    {
-        /*
+{
+    /*
     |--------------------------------------------------------------------------
     | Ambil data pasien dari session
     |--------------------------------------------------------------------------
     */
-        $sessionPatient = session('pasien', []);
+    $sessionPatient = session('pasien', []);
 
-        $patientId = trim(
-            (string) data_get(
-                $sessionPatient,
-                'medical_record',
-                ''
-            )
-        );
+    /*
+    |--------------------------------------------------------------------------
+    | Medical Record
+    |--------------------------------------------------------------------------
+    */
+    $medicalRecord = trim(
+        (string) (
+            data_get($sessionPatient, 'medical_record')
+            ?: data_get($sessionPatient, 'rm')
+            ?: data_get($sessionPatient, 'nocm')
+            ?: ''
+        )
+    );
 
-        /*
+    /*
     |--------------------------------------------------------------------------
     | Validasi session pasien
     |--------------------------------------------------------------------------
     */
-        if ($patientId === '') {
-            return redirect('/')
-                ->withErrors([
-                    'validasi' =>
+    if ($medicalRecord === '') {
+        return redirect('/')
+            ->withErrors([
+                'validasi' =>
                     'Silakan masuk menggunakan nomor rekam medis dan tanggal lahir terlebih dahulu.',
-                ]);
-        }
+            ]);
+    }
 
-        /*
+    /*
     |--------------------------------------------------------------------------
     | Validasi filter
     |--------------------------------------------------------------------------
     */
-        $request->validate([
-            'keyword' => 'nullable|string|max:100',
-            'expertise' => 'nullable|in:ALL,ADA,BELUM',
-            'per_page' => 'nullable|integer|in:10,20,50',
-        ]);
+    $request->validate([
+        'keyword'   => 'nullable|string|max:100',
+        'expertise' => 'nullable|in:ALL,ADA,BELUM',
+        'per_page'  => 'nullable|integer|in:10,20,50',
+    ]);
 
-        /*
+    /*
     |--------------------------------------------------------------------------
-    | NRM menggunakan patient_id dari session
+    | NRM
     |--------------------------------------------------------------------------
     */
-        $nrm = $patientId;
+    $nrm = $medicalRecord;
 
-        $keyword = trim(
-            (string) $request->get('keyword', '')
-        );
+    $keyword = trim(
+        (string) $request->get('keyword', '')
+    );
 
-        $expertiseFilter = strtoupper(
-            (string) $request->get('expertise', 'ALL')
-        );
+    $expertiseFilter = strtoupper(
+        (string) $request->get('expertise', 'ALL')
+    );
 
-        $perPage = (int) $request->get('per_page', 10);
+    $perPage = (int) $request->get('per_page', 10);
 
-        /*
+    /*
     |--------------------------------------------------------------------------
     | Ambil data Radiologi
     |--------------------------------------------------------------------------
     */
-        $result = $radiology->getByNrm($nrm);
+    $result = $radiology->getByNrm($nrm);
 
-        $items = collect(
-            data_get($result, 'data', [])
-        )->map(function ($item) {
-            return $this->normalizeItem($item);
-        });
+    $items = collect(
+        data_get($result, 'data', [])
+    )->map(function ($item) {
+        return $this->normalizeItem($item);
+    });
 
-        /*
+    /*
     |--------------------------------------------------------------------------
     | Filter keyword
     |--------------------------------------------------------------------------
     */
-        if ($keyword !== '') {
-            $needle = mb_strtolower($keyword);
+    if ($keyword !== '') {
+        $needle = mb_strtolower($keyword);
 
-            $items = $items->filter(function ($item) use ($needle) {
+        $items = $items->filter(function ($item) use ($needle) {
+            $haystack = implode(' ', [
+                data_get($item, 'no_rontgen', ''),
+                data_get($item, 'no_register', ''),
+                data_get($item, 'nama_pemeriksaan', ''),
+                data_get($item, 'nama_radiolog', ''),
+                data_get($item, 'nama_radiografer', ''),
+            ]);
 
-                $haystack = implode(' ', [
-                    data_get($item, 'no_rontgen', ''),
-                    data_get($item, 'no_register', ''),
-                    data_get($item, 'nama_pemeriksaan', ''),
-                    data_get($item, 'nama_radiolog', ''),
-                    data_get($item, 'nama_radiografer', ''),
-                ]);
+            return mb_strpos(
+                mb_strtolower($haystack),
+                $needle
+            ) !== false;
+        });
+    }
 
-                return mb_strpos(
-                    mb_strtolower($haystack),
-                    $needle
-                ) !== false;
-            });
-        }
-
-        /*
+    /*
     |--------------------------------------------------------------------------
     | Filter expertise
     |--------------------------------------------------------------------------
     */
-        if ($expertiseFilter === 'ADA') {
-            $items = $items->where(
-                'has_expertise',
-                true
-            );
-        } elseif ($expertiseFilter === 'BELUM') {
-            $items = $items->where(
-                'has_expertise',
-                false
-            );
-        }
+    if ($expertiseFilter === 'ADA') {
+        $items = $items->where(
+            'has_expertise',
+            true
+        );
+    } elseif ($expertiseFilter === 'BELUM') {
+        $items = $items->where(
+            'has_expertise',
+            false
+        );
+    }
 
-        /*
+    /*
     |--------------------------------------------------------------------------
     | Urutkan pemeriksaan terbaru
     |--------------------------------------------------------------------------
     */
-        $items = $items
-            ->sortByDesc('sort_timestamp')
-            ->values();
+    $items = $items
+        ->sortByDesc('sort_timestamp')
+        ->values();
 
-        /*
+    /*
     |--------------------------------------------------------------------------
     | Summary
     |--------------------------------------------------------------------------
     */
-        $summary = [
-            'total' => $items->count(),
+    $summary = [
+        'total' => $items->count(),
 
-            'with_expertise' => $items
-                ->where('has_expertise', true)
-                ->count(),
+        'with_expertise' => $items
+            ->where('has_expertise', true)
+            ->count(),
 
-            'without_expertise' => $items
-                ->where('has_expertise', false)
-                ->count(),
+        'without_expertise' => $items
+            ->where('has_expertise', false)
+            ->count(),
 
-            'critical' => $items
-                ->where('is_critical', true)
-                ->count(),
-        ];
+        'critical' => $items
+            ->where('is_critical', true)
+            ->count(),
+    ];
 
-        /*
+    /*
     |--------------------------------------------------------------------------
     | Pagination
     |--------------------------------------------------------------------------
     */
-        $page = LengthAwarePaginator::resolveCurrentPage();
+    $page = LengthAwarePaginator::resolveCurrentPage();
 
-        $radiologyItems = new LengthAwarePaginator(
-            $items
-                ->forPage($page, $perPage)
-                ->values(),
-            $items->count(),
-            $perPage,
-            $page,
-            [
-                'path' => $request->url(),
-                'query' => $request->except('page'),
-            ]
-        );
+    $radiologyItems = new LengthAwarePaginator(
+        $items
+            ->forPage($page, $perPage)
+            ->values(),
+        $items->count(),
+        $perPage,
+        $page,
+        [
+            'path'  => $request->url(),
+            'query' => $request->except('page'),
+        ]
+    );
 
-        /*
+    /*
     |--------------------------------------------------------------------------
-    | Data pasien untuk View
+    | DATA PASIEN UNTUK VIEW
     |--------------------------------------------------------------------------
-    |
-    | Prioritas nama:
-    | 1. Nama dari session
-    | 2. Nama dari data Radiologi
-    | 3. "-"
-    |
     */
+
+    /*
+     * Ambil nama dari session.
+     *
+     * Prioritas:
+     * 1. name
+     * 2. namapasien
+     * 3. patient_name
+     * 4. nama_pasien
+     * 5. data radiologi
+     */
+    $patientName = trim(
+        (string) (
+            data_get($sessionPatient, 'name')
+            ?: data_get($sessionPatient, 'namapasien')
+            ?: data_get($sessionPatient, 'patient_name')
+            ?: data_get($sessionPatient, 'nama_pasien')
+            ?: ''
+        )
+    );
+
+    /*
+     * Jika nama tidak ada di session,
+     * coba dari hasil radiologi.
+     */
+    if ($patientName === '') {
+        $firstItem = $items->first();
+
         $patientName = trim(
-            (string) data_get(
-                $sessionPatient,
-                'patient_name',
-                ''
+            (string) (
+                data_get($firstItem, 'nama_pasien')
+                ?: data_get($firstItem, 'namapasien')
+                ?: data_get($firstItem, 'patient_name')
+                ?: data_get($firstItem, 'name')
+                ?: ''
             )
         );
+    }
 
-        if ($patientName === '') {
-            $patientName = trim(
-                (string) data_get(
-                    $items->first(),
-                    'nama_pasien',
-                    ''
-                )
-            );
-        }
+    /*
+     * Tanggal lahir
+     */
+    $birthDate = (
+        data_get($sessionPatient, 'birth_date')
+        ?: data_get($sessionPatient, 'tanggal_lahir')
+        ?: data_get($sessionPatient, 'tgllahir')
+        ?: null
+    );
 
-        $patient = [
-            'medical_record' => $nrm,
-            'name' => $patientName !== ''
-                ? $patientName
-                : '-',
-        ];
+    /*
+     * Patient ID bila diperlukan modul lain.
+     */
+    $patientId = (
+        data_get($sessionPatient, 'patient_id')
+        ?: data_get($sessionPatient, 'id')
+        ?: null
+    );
 
-        /*
+    /*
+    |--------------------------------------------------------------------------
+    | Bentuk data pasien yang konsisten untuk Blade
+    |--------------------------------------------------------------------------
+    */
+    $patient = [
+        'patient_id'     => $patientId,
+        'medical_record' => $medicalRecord,
+        'name'           => $patientName !== ''
+            ? $patientName
+            : 'Pasien',
+        'birth_date'     => $birthDate,
+    ];
+
+    /*
     |--------------------------------------------------------------------------
     | View
     |--------------------------------------------------------------------------
     */
-        return view(
-            'layanan.radiologi',
-            compact(
-                'result',
-                'radiologyItems',
-                'summary',
-                'patient',
-                'nrm',
-                'keyword',
-                'expertiseFilter',
-                'perPage'
-            )
-        );
-    }
+    return view(
+        'layanan.radiologi',
+        compact(
+            'result',
+            'radiologyItems',
+            'summary',
+            'patient',
+            'nrm',
+            'keyword',
+            'expertiseFilter',
+            'perPage'
+        )
+    );
+}
 
     public function detail(Request $request, RadiologyApiService $radiology, $id)
     {

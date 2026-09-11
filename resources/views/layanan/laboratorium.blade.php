@@ -1,1683 +1,1817 @@
 @extends('layouts.app', ['title' => 'Laboratorium | NADI RSBM'])
 
 @section('content')
+
+@php
+    $patientName = data_get($patient, 'name', data_get($patient, 'namapasien', 'Pasien'));
+    $medicalRecord = data_get(
+        $patient,
+        'medical_record',
+        data_get($patient, 'rm', data_get($patient, 'nocm', '-'))
+    );
+    $birthDate = data_get($patient, 'birth_date', data_get($patient, 'tgllahir'));
+    $birthDateLabel = '-';
+
+    if ($birthDate) {
+        try {
+            $birthDateLabel = \Carbon\Carbon::parse($birthDate)->format('d-m-Y');
+        } catch (\Throwable $e) {
+            $birthDateLabel = (string) $birthDate;
+        }
+    }
+
+    $mainMenuUrl = Route::has('layanan.menu')
+        ? route('layanan.menu')
+        : url('/layanan/menu');
+
+    $logoutRouteName = Route::has('layanan.logout')
+        ? 'layanan.logout'
+        : (Route::has('logout') ? 'logout' : null);
+
+    $routeOrUrl = function ($routeName, $fallback) {
+        return Route::has($routeName)
+            ? route($routeName)
+            : url($fallback);
+    };
+@endphp
+
 <style>
-    .lab-page,
-    .lab-page * {
+
+    /* =========================================================
+       RESET layouts.app
+       Samakan dengan halaman Detail Laboratorium:
+       - hilangkan navbar/bar bawaan layout
+       - hilangkan padding py-4 / ruang orange di atas
+       ========================================================= */
+    html,
+    body {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    #app > nav.navbar,
+    #app > .navbar,
+    body > nav.navbar,
+    nav.navbar.navbar-expand-md,
+    .navbar.navbar-expand-md {
+        display: none !important;
+        height: 0 !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        box-shadow: none !important;
+    }
+
+    #app,
+    #app > main,
+    main.py-4,
+    .py-4 {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+
+    #app {
+        min-height: 100vh;
+    }
+
+    .content-wrapper,
+    .content,
+    .app-content,
+    .page-content,
+    .main-content {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+    }
+
+    .content-header {
+        display: none !important;
+        height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    :root {
+        --nadi-blue: #163a93;
+        --nadi-blue-2: #1477ee;
+        --nadi-blue-soft: #edf6ff;
+        --nadi-green: #18aa61;
+        --nadi-green-soft: #eafaf1;
+        --nadi-text: #0f2d73;
+        --nadi-dark: #183153;
+        --nadi-muted: #66758e;
+        --nadi-line: #dfe8f2;
+        --nadi-bg: #f7fbff;
+        --nadi-danger: #ef4444;
+        --nadi-warning: #d88908;
+    }
+
+    .nadi-page,
+    .nadi-page * {
         box-sizing: border-box;
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Halaman penuh
-    |--------------------------------------------------------------------------
-    |
-    | Membuat halaman keluar dari batas container layouts.app sehingga
-    | tidak menyisakan area kosong di sebelah kanan.
-    */
-    .lab-page {
-        position: relative;
-        left: 50%;
-        width: 100vw;
-        min-height: 100vh;
-        margin-left: -50vw;
-        padding: 32px clamp(16px, 4vw, 48px) 60px;
-        overflow-x: hidden;
-        color: #0f172a;
-        background:
-            radial-gradient(
-                circle at top right,
-                rgba(34, 197, 94, 0.13),
-                transparent 34%
-            ),
-            radial-gradient(
-                circle at bottom left,
-                rgba(59, 130, 246, 0.08),
-                transparent 30%
-            ),
-            linear-gradient(
-                180deg,
-                #f8fffb 0%,
-                #f8fafc 48%,
-                #f1f5f9 100%
-            );
-    }
-
-    .lab-container {
-        width: min(1180px, 100%);
-        margin: 0 auto;
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Header
-    |--------------------------------------------------------------------------
-    */
-    .lab-header {
-        max-width: 780px;
-        margin-bottom: 26px;
-    }
-
-    .lab-back {
-        display: inline-flex;
-        gap: 8px;
-        align-items: center;
-        margin-bottom: 20px;
-        color: #475569;
-        font-size: 13px;
-        font-weight: 800;
-        text-decoration: none;
-        transition: color 0.2s ease;
-    }
-
-    .lab-back:hover {
-        color: #15803d;
-        text-decoration: none;
-    }
-
-    .lab-eyebrow {
-        display: inline-flex;
-        align-items: center;
-        padding: 7px 13px;
-        border: 1px solid #bbf7d0;
-        border-radius: 999px;
-        background: #dcfce7;
-        color: #166534;
-        font-size: 12px;
-        font-weight: 900;
-    }
-
-    .lab-title {
-        max-width: 680px;
-        margin: 14px 0 10px;
-        color: #0f172a;
-        font-size: clamp(32px, 5vw, 50px);
-        font-weight: 950;
-        line-height: 1.03;
-        letter-spacing: -0.045em;
-    }
-
-    .lab-description {
-        max-width: 680px;
-        margin: 0;
-        color: #64748b;
-        font-size: 15px;
-        line-height: 1.7;
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Komponen card
-    |--------------------------------------------------------------------------
-    */
-    .patient-card,
-    .filter-card,
-    .order-card,
-    .empty-card,
-    .error-card {
-        border: 1px solid rgba(203, 213, 225, 0.8);
-        background: rgba(255, 255, 255, 0.96);
-        box-shadow: 0 14px 35px rgba(15, 23, 42, 0.06);
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Informasi pasien
-    |--------------------------------------------------------------------------
-    */
-    .patient-card {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 0;
-        margin-bottom: 16px;
-        overflow: hidden;
-        border-radius: 22px;
-    }
-
-    .patient-card > div {
-        min-width: 0;
-        padding: 20px 22px;
-    }
-
-    .patient-card > div + div {
-        border-left: 1px solid #e2e8f0;
-    }
-
-    .patient-label {
-        margin-bottom: 6px;
-        color: #94a3b8;
-        font-size: 11px;
-        font-weight: 900;
-        letter-spacing: 0.035em;
-        text-transform: uppercase;
-    }
-
-    .patient-value {
-        overflow-wrap: anywhere;
-        color: #0f172a;
-        font-size: 15px;
-        font-weight: 900;
-        line-height: 1.45;
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Ringkasan
-    |--------------------------------------------------------------------------
-    */
-    .summary-grid {
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 14px;
-        margin-bottom: 18px;
-    }
-
-    .summary-box {
-        min-width: 0;
-        padding: 19px 20px;
-        border: 1px solid rgba(203, 213, 225, 0.8);
-        border-radius: 20px;
-        background: rgba(255, 255, 255, 0.96);
-        box-shadow: 0 10px 28px rgba(15, 23, 42, 0.045);
-    }
-
-    .summary-label {
-        min-height: 30px;
-        color: #64748b;
-        font-size: 11px;
-        font-weight: 900;
-        line-height: 1.35;
-        letter-spacing: 0.025em;
-        text-transform: uppercase;
-    }
-
-    .summary-value {
-        margin-top: 5px;
-        color: #0f172a;
-        font-size: 30px;
-        font-weight: 950;
-        line-height: 1;
-        letter-spacing: -0.04em;
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Filter
-    |--------------------------------------------------------------------------
-    */
-    .filter-card {
-        margin-bottom: 18px;
-        padding: 20px;
-        border-radius: 22px;
-    }
-
-    .filter-grid {
-        display: grid;
-        grid-template-columns:
-            minmax(260px, 1.5fr)
-            minmax(170px, 0.7fr)
-            minmax(140px, 0.55fr);
-        gap: 14px;
-        align-items: end;
-    }
-
-    .form-group {
-        display: grid;
-        min-width: 0;
-        gap: 7px;
-    }
-
-    .form-label {
-        margin: 0;
-        color: #334155;
-        font-size: 12px;
-        font-weight: 900;
-    }
-
-    .form-control {
-        display: block;
-        width: 100%;
-        min-width: 0;
-        height: 48px;
-        padding: 0 14px;
-        border: 1px solid #cbd5e1;
-        border-radius: 14px;
-        outline: none;
-        background: #fff;
-        color: #0f172a;
-        font-size: 13px;
-        transition:
-            border-color 0.2s ease,
-            box-shadow 0.2s ease;
-    }
-
-    .form-control:focus {
-        border-color: #22c55e;
-        box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.12);
-    }
-
-    .filter-actions {
-        display: flex;
-        grid-column: 1 / -1;
-        gap: 10px;
-        align-items: center;
-        justify-content: flex-end;
-        padding-top: 2px;
-    }
-
-    .btn-primary,
-    .btn-secondary {
-        display: inline-flex;
-        height: 46px;
-        min-width: 105px;
-        align-items: center;
-        justify-content: center;
-        padding: 0 18px;
-        border-radius: 14px;
-        font-size: 13px;
-        font-weight: 900;
-        line-height: 1;
-        text-decoration: none;
-        white-space: nowrap;
-        cursor: pointer;
-        transition:
-            transform 0.2s ease,
-            box-shadow 0.2s ease,
-            background 0.2s ease;
-    }
-
-    .btn-primary {
-        border: 0;
-        background: linear-gradient(135deg, #22c55e, #16a34a);
-        color: #fff;
-        box-shadow: 0 8px 18px rgba(22, 163, 74, 0.22);
-    }
-
-    .btn-primary:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 11px 23px rgba(22, 163, 74, 0.27);
-    }
-
-    .btn-secondary {
-        border: 1px solid #cbd5e1;
-        background: #f8fafc;
-        color: #475569;
-    }
-
-    .btn-secondary:hover {
-        border-color: #94a3b8;
-        background: #f1f5f9;
-        color: #0f172a;
-        text-decoration: none;
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Order laboratorium
-    |--------------------------------------------------------------------------
-    */
-    .order-card {
-        margin-bottom: 16px;
-        overflow: hidden;
-        border-radius: 22px;
-    }
-
-    .order-header {
-        display: flex;
-        gap: 18px;
-        align-items: flex-start;
-        justify-content: space-between;
-        padding: 20px 22px;
-        border-bottom: 1px solid #e2e8f0;
-        background:
-            linear-gradient(
-                90deg,
-                rgba(240, 253, 244, 0.7),
-                rgba(255, 255, 255, 0)
-            );
-    }
-
-    .order-number {
-        color: #0f172a;
-        font-size: 18px;
-        font-weight: 950;
-        letter-spacing: -0.015em;
-    }
-
-    .order-date {
-        margin-top: 6px;
-        color: #64748b;
-        font-size: 12px;
-        font-weight: 750;
-        line-height: 1.5;
-    }
-
-    .status-badge {
-        display: inline-flex;
-        flex: 0 0 auto;
-        align-items: center;
-        padding: 7px 12px;
-        border-radius: 999px;
-        background: #dbeafe;
-        color: #1d4ed8;
-        font-size: 11px;
-        font-weight: 900;
-        text-transform: capitalize;
-    }
-
-    .order-body {
-        padding: 22px;
-    }
-
-    .order-info {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 20px 26px;
-        margin-bottom: 22px;
-    }
-
-    .order-info > div {
-        min-width: 0;
-    }
-
-    .info-label {
-        margin-bottom: 5px;
-        color: #94a3b8;
-        font-size: 10px;
-        font-weight: 900;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-    }
-
-    .info-value {
-        overflow-wrap: anywhere;
-        color: #334155;
-        font-size: 13px;
-        font-weight: 850;
-        line-height: 1.55;
-    }
-
-    .detail-title {
-        margin-bottom: 11px;
-        color: #0f172a;
-        font-size: 13px;
-        font-weight: 950;
-    }
-
-    .detail-list {
-        display: flex;
-        gap: 8px;
-        align-items: center;
-        flex-wrap: wrap;
-    }
-
-    .detail-item {
-        display: inline-flex;
-        max-width: 100%;
-        align-items: center;
-        padding: 8px 11px;
-        border: 1px solid #dcfce7;
-        border-radius: 11px;
-        background: #f0fdf4;
-        color: #166534;
-        font-size: 11px;
-        font-weight: 850;
-        line-height: 1.35;
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Empty dan error
-    |--------------------------------------------------------------------------
-    */
-    .empty-card,
-    .error-card {
-        padding: 38px 22px;
-        border-radius: 22px;
-        text-align: center;
-        font-size: 14px;
-        font-weight: 750;
-        line-height: 1.6;
-    }
-
-    .empty-card {
-        color: #64748b;
-    }
-
-    .error-card {
-        border-color: #fecaca;
-        background: #fef2f2;
-        color: #991b1b;
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Infinite Scroll
-    |--------------------------------------------------------------------------
-    */
-    .infinite-scroll-sentinel {
-        display: flex;
-        min-height: 86px;
-        align-items: center;
-        justify-content: center;
-        margin-top: 8px;
-    }
-
-    .infinite-loader {
-        display: inline-flex;
-        gap: 10px;
-        align-items: center;
-        justify-content: center;
-        padding: 12px 16px;
-        border: 1px solid rgba(203, 213, 225, 0.8);
-        border-radius: 14px;
-        background: rgba(255, 255, 255, 0.92);
-        color: #64748b;
-        font-size: 12px;
-        font-weight: 850;
-        box-shadow: 0 8px 22px rgba(15, 23, 42, 0.04);
-    }
-
-    .loading-spinner {
-        width: 20px;
-        height: 20px;
-        flex: 0 0 auto;
-        border: 3px solid #dcfce7;
-        border-top-color: #16a34a;
-        border-radius: 50%;
-        animation: lab-spin 0.7s linear infinite;
-    }
-
-    @keyframes lab-spin {
-        to {
-            transform: rotate(360deg);
-        }
-    }
-
-    .infinite-scroll-error {
-        display: grid;
-        gap: 9px;
-        justify-items: center;
-        padding: 14px 16px;
-        border: 1px solid #fecaca;
-        border-radius: 14px;
-        background: #fef2f2;
-        color: #991b1b;
-        font-size: 12px;
-        font-weight: 800;
-        text-align: center;
-    }
-
-    .infinite-retry {
-        display: inline-flex;
-        height: 34px;
-        align-items: center;
-        justify-content: center;
-        padding: 0 13px;
-        border: 1px solid #fecaca;
-        border-radius: 10px;
-        background: #fff;
-        color: #b91c1c;
-        font-size: 11px;
-        font-weight: 900;
-        cursor: pointer;
-    }
-
-    .infinite-retry:hover {
-        background: #fee2e2;
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Tablet
-    |--------------------------------------------------------------------------
-    */
-    @media (max-width: 900px) {
-        .lab-page {
-            padding-top: 24px;
-        }
-
-        .lab-title {
-            font-size: clamp(32px, 7vw, 44px);
-        }
-
-        .summary-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-
-        .filter-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-        }
-
-        .filter-grid .form-group:first-child {
-            grid-column: 1 / -1;
-        }
-
-        .filter-actions {
-            grid-column: 1 / -1;
-        }
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Mobile
-    |--------------------------------------------------------------------------
-    */
-    @media (max-width: 640px) {
-        .lab-page {
-            padding: 18px 14px 42px;
-        }
-
-        .lab-header {
-            margin-bottom: 20px;
-        }
-
-        .lab-back {
-            margin-bottom: 16px;
-        }
-
-        .lab-title {
-            margin-top: 12px;
-            font-size: 34px;
-            line-height: 1.05;
-        }
-
-        .patient-card {
-            grid-template-columns: 1fr;
-        }
-
-        .patient-card > div {
-            padding: 16px 18px;
-        }
-
-        .patient-card > div + div {
-            border-top: 1px solid #e2e8f0;
-            border-left: 0;
-        }
-
-        .summary-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 10px;
-        }
-
-        .summary-box {
-            padding: 16px;
-        }
-
-        .summary-label {
-            min-height: 28px;
-            font-size: 10px;
-        }
-
-        .summary-value {
-            font-size: 26px;
-        }
-
-        .filter-card {
-            padding: 16px;
-        }
-
-        .filter-grid {
-            grid-template-columns: 1fr;
-        }
-
-        .filter-grid .form-group:first-child,
-        .filter-actions {
-            grid-column: auto;
-        }
-
-        .filter-actions {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-        }
-
-        .btn-primary,
-        .btn-secondary {
-            width: 100%;
-            min-width: 0;
-        }
-
-        .order-header {
-            flex-direction: column;
-            padding: 18px;
-        }
-
-        .order-body {
-            padding: 18px;
-        }
-
-        .order-info {
-            grid-template-columns: 1fr;
-            gap: 15px;
-        }
-
-        .detail-item {
-            width: 100%;
-        }
-    }
-
-    @media (max-width: 380px) {
-        .summary-grid {
-            grid-template-columns: 1fr;
-        }
-
-        .filter-actions {
-            grid-template-columns: 1fr;
-        }
-    }
-    .order-header-actions {
-    display: flex;
-    flex: 0 0 auto;
-    gap: 9px;
-    align-items: center;
-}
-
-.btn-detail {
-    display: inline-flex;
-    height: 36px;
-    align-items: center;
-    justify-content: center;
-    padding: 0 14px;
-    border: 1px solid #bbf7d0;
-    border-radius: 11px;
-    background: #f0fdf4;
-    color: #15803d;
-    font-size: 11px;
-    font-weight: 900;
-    text-decoration: none;
-    white-space: nowrap;
-    transition:
-        background 0.2s ease,
-        border-color 0.2s ease,
-        transform 0.2s ease;
-}
-
-.btn-detail:hover {
-    transform: translateY(-1px);
-    border-color: #86efac;
-    background: #dcfce7;
-    color: #166534;
-    text-decoration: none;
-}
-
-.btn-detail.is-disabled {
-    border-color: #e2e8f0;
-    background: #f8fafc;
-    color: #94a3b8;
-    cursor: not-allowed;
-    pointer-events: none;
-    box-shadow: none;
-}
-
-@media (max-width: 640px) {
-    .order-header-actions {
-        width: 100%;
-        justify-content: space-between;
-    }
-
-    .btn-detail {
-        height: 38px;
-    }
-}
-
-
-    /* ================================================================
-       Penyelarasan visual SAPA RSBM / RSUD Bali Mandara
-       ================================================================ */
-    :root {
-        --rsbm-blue: #26358f;
-        --rsbm-blue-dark: #1d286d;
-        --rsbm-blue-soft: #eef1ff;
-        --rsbm-green: #19c83d;
-        --rsbm-green-dark: #0f9f2e;
-        --rsbm-green-soft: #eafbee;
-        --rsbm-text: #182033;
-        --rsbm-muted: #64748b;
-        --rsbm-line: #e3e8ef;
-        --rsbm-bg: #f7f9fc;
-    }
-
-    .lab-page {
-        left: auto;
-        width: auto;
+    .nadi-page {
         min-height: calc(100svh - 72px);
-        margin-left: 0;
-        padding: 16px 0 42px;
-        color: var(--rsbm-text);
+        padding: 22px 12px 34px;
         background:
-            radial-gradient(circle at 8% 8%, rgba(38, 53, 143, .08), transparent 25%),
-            radial-gradient(circle at 93% 90%, rgba(25, 200, 61, .07), transparent 24%),
-            linear-gradient(180deg, #fff 0%, var(--rsbm-bg) 100%);
+            radial-gradient(circle at 8% 5%, rgba(24, 170, 97, .10), transparent 28%),
+            radial-gradient(circle at 96% 8%, rgba(20, 119, 238, .09), transparent 30%),
+            linear-gradient(180deg, #fff 0%, var(--nadi-bg) 100%);
+        color: var(--nadi-text);
     }
 
-    .lab-container {
-        width: min(1060px, calc(100% - 28px));
+    .nadi-phone {
+        width: min(100%, 520px);
+        margin: 0 auto;
+        overflow: hidden;
+        border: 1px solid rgba(22, 58, 147, .10);
+        border-radius: 28px;
+        background: rgba(255, 255, 255, .98);
+        box-shadow:
+            0 26px 70px rgba(15, 45, 115, .11),
+            0 2px 10px rgba(15, 45, 115, .04);
     }
 
-    .lab-topbar {
+    .nadi-main {
+        padding: 22px 18px 105px;
+    }
+
+    /* Header */
+    .nadi-header {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 18px;
-        margin-bottom: 22px;
-        padding-bottom: 15px;
-        border-bottom: 1px solid rgba(38, 53, 143, .09);
+        gap: 12px;
+        margin-bottom: 16px;
     }
 
-    .lab-brand {
+    .nadi-welcome {
         display: flex;
         min-width: 0;
         align-items: center;
         gap: 11px;
     }
 
-    .lab-brand-logo-shell {
+    .nadi-user-icon {
         display: grid;
         width: 48px;
         height: 48px;
         flex: 0 0 48px;
         place-items: center;
+        border-radius: 50%;
+        background: linear-gradient(145deg, #dff8c9, #bfeea7);
+        color: var(--nadi-green);
+    }
+
+    .nadi-greeting {
+        min-width: 0;
+    }
+
+    .nadi-greeting-small {
+        color: var(--nadi-blue);
+        font-size: 12px;
+        font-weight: 800;
+        line-height: 1.2;
+    }
+
+    .nadi-greeting-name {
+        max-width: 285px;
         overflow: hidden;
-        border: 1px solid rgba(38, 53, 143, .11);
+        color: var(--nadi-text);
+        font-size: clamp(20px, 5.5vw, 28px);
+        font-weight: 950;
+        line-height: 1.05;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        letter-spacing: -.035em;
+    }
+
+    .nadi-header-actions {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+    }
+
+    .nadi-icon-button,
+    .nadi-logout-button {
+        display: grid;
+        width: 40px;
+        height: 40px;
+        flex: 0 0 40px;
+        place-items: center;
+        border: 0;
         border-radius: 12px;
         background: #fff;
-        box-shadow: 0 8px 20px rgba(38, 53, 143, .08);
-    }
-
-    .lab-brand-logo {
-        width: 41px;
-        height: 41px;
-        object-fit: contain;
-    }
-
-    .lab-brand-fallback {
-        display: none;
-        width: 36px;
-        height: 36px;
-        place-items: center;
-        border-radius: 10px;
-        background: linear-gradient(145deg, var(--rsbm-blue), var(--rsbm-blue-dark));
-        color: #fff;
-        font-size: 17px;
-        font-weight: 950;
-    }
-
-    .lab-brand-government {
-        color: #7d8797;
-        font-size: 8.5px;
-        font-weight: 850;
-        letter-spacing: .11em;
-        text-transform: uppercase;
-    }
-
-    .lab-brand-name {
-        margin-top: 1px;
-        color: var(--rsbm-blue-dark);
-        font-size: 15px;
-        font-weight: 950;
-        letter-spacing: -.01em;
-    }
-
-    .lab-brand-location {
-        margin-top: 1px;
-        color: #939cab;
-        font-size: 9.5px;
-        font-weight: 650;
-    }
-
-    .nav-label-short {
-        display: none;
-    }
-
-    .lab-nav-actions {
-        display: flex;
-        flex: 0 0 auto;
-        align-items: center;
-        gap: 8px;
-    }
-
-    .lab-nav-button,
-    .lab-logout-button {
-        display: inline-flex;
-        min-height: 40px;
-        align-items: center;
-        justify-content: center;
-        gap: 7px;
-        padding: 0 13px;
-        border-radius: 11px;
-        font-family: inherit;
-        font-size: 11px;
-        font-weight: 900;
-        line-height: 1;
-        text-decoration: none;
-        white-space: nowrap;
+        color: var(--nadi-blue-2);
         cursor: pointer;
-        transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
+        text-decoration: none;
+        transition: .18s ease;
     }
 
-    .lab-nav-button {
-        border: 1px solid rgba(38, 53, 143, .13);
-        background: var(--rsbm-blue-soft);
-        color: var(--rsbm-blue);
-    }
-
-    .lab-nav-button:hover {
-        transform: translateY(-1px);
-        background: #e4e8ff;
-        color: var(--rsbm-blue-dark);
+    .nadi-icon-button:hover,
+    .nadi-logout-button:hover {
+        background: var(--nadi-blue-soft);
+        color: var(--nadi-blue);
         text-decoration: none;
     }
 
-    .lab-logout-form {
+    .nadi-logout-form {
         margin: 0;
     }
 
-    .lab-logout-button {
-        border: 1px solid #fecaca;
-        background: #fff;
-        color: #b91c1c;
+    /* Intro */
+    .lab-intro {
+        position: relative;
+        margin-bottom: 13px;
+        padding: 15px 15px 14px;
+        overflow: hidden;
+        border: 1px solid #d8efdf;
+        border-radius: 20px;
+        background: linear-gradient(135deg, rgba(237, 252, 244, .98), rgba(248, 253, 255, .98));
+        box-shadow: 0 10px 26px rgba(24, 170, 97, .06);
     }
 
-    .lab-logout-button:hover {
-        transform: translateY(-1px);
-        background: #fef2f2;
-        box-shadow: 0 6px 16px rgba(185, 28, 28, .07);
-    }
-
-    .lab-header {
-        max-width: none;
-        margin-bottom: 18px;
-    }
-
-    .lab-back {
-        display: none;
-    }
-
-    .lab-eyebrow {
-        gap: 7px;
-        padding: 6px 10px;
-        border-color: rgba(38, 53, 143, .09);
-        background: rgba(255, 255, 255, .84);
-        color: var(--rsbm-blue-dark);
-        font-size: 10px;
-        letter-spacing: .075em;
-        text-transform: uppercase;
-    }
-
-    .lab-eyebrow::before {
-        width: 7px;
-        height: 7px;
+    .lab-intro::after {
+        position: absolute;
+        top: -31px;
+        right: -28px;
+        width: 92px;
+        height: 92px;
+        border: 18px solid rgba(24, 170, 97, .055);
         border-radius: 50%;
-        background: var(--rsbm-green);
-        box-shadow: 0 0 0 4px rgba(25, 200, 61, .10);
         content: '';
     }
 
-    .lab-title {
-        max-width: 720px;
-        margin: 10px 0 7px;
-        color: var(--rsbm-text);
-        font-size: clamp(30px, 4vw, 44px);
-        line-height: 1.06;
+    .lab-intro-head {
+        position: relative;
+        z-index: 1;
+        display: flex;
+        align-items: center;
+        gap: 12px;
     }
 
-    .lab-title span {
-        color: var(--rsbm-blue);
+    .lab-intro-icon {
+        display: grid;
+        width: 45px;
+        height: 45px;
+        flex: 0 0 45px;
+        place-items: center;
+        border-radius: 13px;
+        background: var(--nadi-green-soft);
+        color: var(--nadi-green);
     }
 
-    .lab-description {
-        max-width: 700px;
-        color: var(--rsbm-muted);
-        font-size: 13px;
-        line-height: 1.6;
+    .lab-intro-title {
+        margin: 0;
+        color: var(--nadi-blue);
+        font-size: 18px;
+        font-weight: 950;
+        line-height: 1.2;
+        letter-spacing: -.025em;
     }
 
-    .patient-card,
-    .filter-card,
-    .order-card,
-    .empty-card,
-    .error-card {
-        border-color: rgba(217, 224, 234, .95);
-        box-shadow: 0 12px 30px rgba(28, 39, 90, .055);
-    }
-
-    .patient-card {
-        margin-bottom: 13px;
-        border-radius: 18px;
-    }
-
-    .patient-card > div {
-        padding: 15px 18px;
-    }
-
-    .patient-label {
-        margin-bottom: 4px;
-        color: #939daf;
-        font-size: 9.5px;
-    }
-
-    .patient-value {
-        color: var(--rsbm-text);
-        font-size: 13.5px;
-    }
-
-    .filter-card {
-        margin-bottom: 14px;
-        padding: 16px;
-        border-radius: 18px;
-    }
-
-    .filter-grid {
-        grid-template-columns:
-            minmax(250px, 1.55fr)
-            minmax(160px, .7fr)
-            minmax(135px, .55fr);
-        gap: 10px;
-    }
-
-    .filter-actions {
-        grid-column: 1 / -1;
-        width: 100%;
-        padding-top: 2px;
-        justify-content: flex-end;
-        flex-wrap: wrap;
-    }
-
-    .filter-actions .btn-primary,
-    .filter-actions .btn-secondary {
-        flex: 0 0 auto;
-    }
-
-    .form-label {
+    .lab-intro-text {
+        margin: 4px 0 0;
+        color: #66758e;
         font-size: 10.5px;
+        font-weight: 650;
+        line-height: 1.45;
     }
 
-    .form-control {
-        height: 44px;
-        border-color: var(--rsbm-line);
-        border-radius: 11px;
-        font-size: 12px;
-    }
-
-    .form-control:focus {
-        border-color: var(--rsbm-blue);
-        box-shadow: 0 0 0 3px rgba(38, 53, 143, .09);
-    }
-
-    .btn-primary,
-    .btn-secondary {
-        height: 44px;
-        min-width: 88px;
-        padding: 0 14px;
-        border-radius: 11px;
-        font-size: 11px;
-    }
-
-    .btn-primary {
-        background: linear-gradient(135deg, var(--rsbm-blue), var(--rsbm-blue-dark));
-        box-shadow: 0 8px 18px rgba(38, 53, 143, .18);
-    }
-
-    .btn-primary:hover {
-        box-shadow: 0 10px 22px rgba(38, 53, 143, .23);
-    }
-
-    .order-card {
+    /* Pasien */
+    .lab-patient {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         margin-bottom: 13px;
+        overflow: hidden;
+        border: 1px solid var(--nadi-line);
+        border-radius: 17px;
+        background: #fff;
+        box-shadow: 0 8px 22px rgba(15, 45, 115, .045);
+    }
+
+    .lab-patient-item {
+        min-width: 0;
+        padding: 12px 13px;
+        border-top: 1px solid #edf2f7;
+    }
+
+    .lab-patient-item:nth-child(2n) {
+        border-left: 1px solid #edf2f7;
+    }
+
+    .lab-patient-item.is-wide {
+        grid-column: 1 / -1;
+        border-top: 0;
+        border-left: 0;
+    }
+
+    .lab-label {
+        margin-bottom: 3px;
+        color: #8a99ad;
+        font-size: 8.5px;
+        font-weight: 900;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+    }
+
+    .lab-value {
+        overflow-wrap: anywhere;
+        color: var(--nadi-dark);
+        font-size: 11.5px;
+        font-weight: 900;
+        line-height: 1.4;
+    }
+
+    /* Alert */
+    .lab-alert,
+    .lab-empty {
+        padding: 20px 16px;
+        border: 1px solid var(--nadi-line);
+        border-radius: 17px;
+        background: #fff;
+        color: var(--nadi-muted);
+        font-size: 11px;
+        font-weight: 750;
+        line-height: 1.55;
+        text-align: center;
+    }
+
+    .lab-alert {
+        border-color: #fecaca;
+        background: #fff6f6;
+        color: #b42318;
+    }
+
+    /* Filter */
+    .lab-filter {
+        margin-bottom: 14px;
+        padding: 13px;
+        border: 1px solid var(--nadi-line);
+        border-radius: 17px;
+        background: #fff;
+        box-shadow: 0 8px 22px rgba(15, 45, 115, .04);
+    }
+
+    .lab-filter-title {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        margin-bottom: 10px;
+        color: var(--nadi-blue);
+        font-size: 11.5px;
+        font-weight: 950;
+    }
+
+    .lab-filter-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 9px;
+    }
+
+    .lab-form-group {
+        display: grid;
+        min-width: 0;
+        gap: 5px;
+    }
+
+    .lab-form-group.is-wide {
+        grid-column: 1 / -1;
+    }
+
+    .lab-form-label {
+        color: #49617f;
+        font-size: 9px;
+        font-weight: 900;
+    }
+
+    .lab-form-control {
+        display: block;
+        width: 100%;
+        height: 40px;
+        padding: 0 11px;
+        border: 1px solid #dbe5ef;
+        border-radius: 10px;
+        outline: none;
+        background: #fbfdff;
+        color: var(--nadi-dark);
+        font: inherit;
+        font-size: 10.5px;
+        font-weight: 700;
+        transition: .18s ease;
+    }
+
+    .lab-form-control:focus {
+        border-color: #93baf0;
+        background: #fff;
+        box-shadow: 0 0 0 3px rgba(20, 119, 238, .08);
+    }
+
+    .lab-filter-actions {
+        display: grid;
+        grid-column: 1 / -1;
+        grid-template-columns: 1fr auto;
+        gap: 8px;
+        margin-top: 1px;
+    }
+
+    .lab-btn-primary,
+    .lab-btn-reset,
+    .lab-btn-detail,
+    .infinite-retry {
+        display: inline-flex;
+        min-height: 39px;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 0 13px;
+        border-radius: 10px;
+        font: inherit;
+        font-size: 10px;
+        font-weight: 900;
+        line-height: 1;
+        text-decoration: none;
+        cursor: pointer;
+        transition: .18s ease;
+    }
+
+    .lab-btn-primary {
+        border: 0;
+        background: linear-gradient(135deg, var(--nadi-blue-2), var(--nadi-blue));
+        color: #fff;
+        box-shadow: 0 7px 16px rgba(20, 119, 238, .18);
+    }
+
+    .lab-btn-primary:hover {
+        transform: translateY(-1px);
+        color: #fff;
+        box-shadow: 0 9px 19px rgba(20, 119, 238, .24);
+    }
+
+    .lab-btn-reset {
+        border: 1px solid #dbe5ef;
+        background: #f8fafc;
+        color: #66758e;
+    }
+
+    .lab-btn-reset:hover {
+        border-color: #bfd2e5;
+        background: #f0f6fb;
+        color: var(--nadi-blue);
+        text-decoration: none;
+    }
+
+    /* Result title */
+    .lab-result-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin: 2px 1px 10px;
+    }
+
+    .lab-result-title {
+        margin: 0;
+        color: var(--nadi-blue);
+        font-size: 13px;
+        font-weight: 950;
+        letter-spacing: -.015em;
+    }
+
+    .lab-result-count {
+        padding: 5px 8px;
+        border-radius: 999px;
+        background: var(--nadi-green-soft);
+        color: var(--nadi-green);
+        font-size: 8.5px;
+        font-weight: 900;
+    }
+
+    /* Card order */
+    .order-card {
+        position: relative;
+        margin-bottom: 11px;
+        overflow: hidden;
+        border: 1px solid var(--nadi-line);
         border-radius: 18px;
+        background: #fff;
+        box-shadow: 0 9px 24px rgba(15, 45, 115, .045);
+    }
+
+    .order-card::before {
+        display: block;
+        height: 3px;
+        background: linear-gradient(90deg, var(--nadi-green) 0 35%, var(--nadi-blue-2) 35% 100%);
+        content: '';
     }
 
     .order-header {
-        padding: 15px 18px;
-        background: linear-gradient(90deg, rgba(238, 241, 255, .8), rgba(234, 251, 238, .25), #fff);
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 13px 13px 11px;
+        border-bottom: 1px solid #edf2f7;
+        background: linear-gradient(90deg, rgba(234, 250, 241, .70), rgba(237, 246, 255, .38), #fff);
+    }
+
+    .order-main {
+        min-width: 0;
+        flex: 1 1 auto;
     }
 
     .order-number {
-        color: var(--rsbm-blue-dark);
-        font-size: 16px;
+        overflow-wrap: anywhere;
+        color: var(--nadi-dark);
+        font-size: 13px;
+        font-weight: 950;
+        line-height: 1.35;
     }
 
     .order-date {
         margin-top: 4px;
-        font-size: 10.5px;
+        color: #72839a;
+        font-size: 9px;
+        font-weight: 750;
+        line-height: 1.45;
+    }
+
+    .order-header-actions {
+        display: flex;
+        flex: 0 0 auto;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 6px;
     }
 
     .status-badge {
-        padding: 6px 10px;
-        background: var(--rsbm-green-soft);
-        color: var(--rsbm-green-dark);
-        font-size: 9.5px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 24px;
+        padding: 0 8px;
+        border-radius: 999px;
+        background: var(--nadi-green-soft);
+        color: #118148;
+        font-size: 8.5px;
+        font-weight: 900;
+        text-transform: capitalize;
+        white-space: nowrap;
     }
 
-    .btn-detail {
-        height: 34px;
-        border-color: rgba(38, 53, 143, .13);
-        border-radius: 9px;
-        background: var(--rsbm-blue-soft);
-        color: var(--rsbm-blue);
-        font-size: 10px;
+    .lab-btn-detail {
+        min-height: 30px;
+        padding: 0 9px;
+        border: 1px solid #cfe2f6;
+        background: var(--nadi-blue-soft);
+        color: var(--nadi-blue-2);
+        font-size: 8.8px;
     }
 
-    .btn-detail:hover {
-        border-color: rgba(38, 53, 143, .2);
-        background: #e4e8ff;
-        color: var(--rsbm-blue-dark);
+    .lab-btn-detail:hover {
+        transform: translateY(-1px);
+        border-color: #acccea;
+        background: #e4f1ff;
+        color: var(--nadi-blue);
+        text-decoration: none;
+    }
+
+    .lab-btn-detail.is-disabled {
+        border-color: #e5eaf0;
+        background: #f8fafc;
+        color: #a5b0bd;
+        cursor: not-allowed;
+        pointer-events: none;
     }
 
     .order-body {
-        padding: 17px 18px;
+        padding: 12px 13px 13px;
     }
 
     .order-info {
-        gap: 14px 22px;
-        margin-bottom: 16px;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px 13px;
+    }
+
+    .order-info-item {
+        min-width: 0;
+    }
+
+    .order-info-item.is-wide {
+        grid-column: 1 / -1;
     }
 
     .info-label {
-        font-size: 9px;
+        margin-bottom: 3px;
+        color: #91a0b2;
+        font-size: 8px;
+        font-weight: 900;
+        letter-spacing: .035em;
+        text-transform: uppercase;
     }
 
     .info-value {
-        font-size: 11.5px;
+        overflow-wrap: anywhere;
+        color: #405775;
+        font-size: 10px;
+        font-weight: 850;
+        line-height: 1.45;
+    }
+
+    .detail-section {
+        margin-top: 11px;
+        padding-top: 10px;
+        border-top: 1px dashed #e3ebf3;
     }
 
     .detail-title {
+        display: flex;
+        align-items: center;
+        gap: 6px;
         margin-bottom: 8px;
-        font-size: 11.5px;
+        color: var(--nadi-blue);
+        font-size: 10px;
+        font-weight: 950;
+    }
+
+    .detail-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
     }
 
     .detail-item {
-        padding: 6px 9px;
-        border-color: #d7e8dc;
+        display: inline-flex;
+        max-width: 100%;
+        align-items: center;
+        padding: 6px 8px;
+        border: 1px solid #d7eee0;
         border-radius: 9px;
-        background: #f7fcf8;
-        color: #3f6350;
-        font-size: 10px;
+        background: #f5fcf8;
+        color: #376b50;
+        font-size: 8.8px;
+        font-weight: 800;
+        line-height: 1.35;
+    }
+
+    /* Infinite scroll */
+    .infinite-scroll-sentinel {
+        display: flex;
+        min-height: 70px;
+        align-items: center;
+        justify-content: center;
+        margin-top: 4px;
+    }
+
+    .infinite-loader {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 9px 12px;
+        border: 1px solid var(--nadi-line);
+        border-radius: 12px;
+        background: #fff;
+        color: #71839a;
+        font-size: 9.5px;
+        font-weight: 850;
     }
 
     .loading-spinner {
-        border-color: var(--rsbm-blue-soft);
-        border-top-color: var(--rsbm-blue);
+        width: 17px;
+        height: 17px;
+        flex: 0 0 17px;
+        border: 2.5px solid var(--nadi-blue-soft);
+        border-top-color: var(--nadi-blue-2);
+        border-radius: 50%;
+        animation: lab-spin .7s linear infinite;
     }
 
-    @media (max-width: 900px) {
-        .lab-page {
-            padding-top: 12px;
+    @keyframes lab-spin {
+        to { transform: rotate(360deg); }
+    }
+
+    .infinite-scroll-error {
+        display: grid;
+        gap: 8px;
+        justify-items: center;
+        padding: 12px;
+        border: 1px solid #fecaca;
+        border-radius: 12px;
+        background: #fff5f5;
+        color: #b42318;
+        font-size: 9.5px;
+        font-weight: 800;
+        text-align: center;
+    }
+
+    .infinite-retry {
+        min-height: 32px;
+        border: 1px solid #fecaca;
+        background: #fff;
+        color: #b42318;
+    }
+
+    .infinite-retry:hover {
+        background: #feecec;
+    }
+
+    /* Bottom navigation */
+    .nadi-bottom-nav {
+        position: fixed;
+        z-index: 1000;
+        left: 50%;
+        bottom: 0;
+        display: grid;
+        width: min(100%, 520px);
+        grid-template-columns: repeat(5, 1fr);
+        transform: translateX(-50%);
+        border-top: 1px solid #e6edf5;
+        background: rgba(255, 255, 255, .98);
+        box-shadow: 0 -8px 24px rgba(15, 45, 115, .08);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    .nadi-bottom-link {
+        position: relative;
+        display: flex;
+        min-height: 72px;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 5px;
+        color: #667891;
+        font-size: 9px;
+        font-weight: 750;
+        text-decoration: none;
+    }
+
+    .nadi-bottom-link:hover {
+        color: var(--nadi-blue-2);
+        text-decoration: none;
+    }
+
+    .nadi-bottom-link.is-active {
+        color: var(--nadi-blue-2);
+        font-weight: 900;
+    }
+
+    .nadi-bottom-link.is-active::after {
+        position: absolute;
+        right: 28%;
+        bottom: 7px;
+        left: 28%;
+        height: 3px;
+        border-radius: 999px;
+        background: var(--nadi-blue-2);
+        content: '';
+    }
+
+    @media (min-width: 700px) {
+        .nadi-page {
+            padding-top: 34px;
+            padding-bottom: 44px;
         }
 
-        .filter-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+        .nadi-phone {
+            border-radius: 32px;
         }
 
-        .filter-grid .form-group:first-child,
-        .filter-actions {
-            grid-column: 1 / -1;
+        .nadi-main {
+            padding: 26px 22px 108px;
         }
     }
 
-    @media (max-width: 640px) {
-        .lab-page {
-            padding: 8px 0 32px;
+    @media (max-width: 420px) {
+        .nadi-page {
+            padding: 0;
+            background: #fff;
         }
 
-        .lab-container {
-            width: min(100% - 18px, 520px);
+        .nadi-phone {
+            width: 100%;
+            min-height: calc(100svh - 72px);
+            border: 0;
+            border-radius: 0;
+            box-shadow: none;
         }
 
-        .lab-topbar {
-            align-items: flex-start;
-            gap: 10px;
-            margin-bottom: 15px;
-            padding-bottom: 12px;
+        .nadi-main {
+            padding: 18px 14px 100px;
         }
 
-        .lab-brand-logo-shell {
+        .nadi-greeting-name {
+            max-width: 205px;
+            font-size: 22px;
+        }
+
+        .nadi-user-icon {
             width: 43px;
             height: 43px;
             flex-basis: 43px;
         }
 
-        .lab-brand-logo {
-            width: 37px;
-            height: 37px;
+        .order-header {
+            flex-direction: column;
         }
 
-        .lab-brand-government,
-        .lab-brand-location {
-            display: none;
+        .order-header-actions {
+            width: 100%;
+            flex-direction: row;
+            align-items: center;
+            justify-content: space-between;
         }
 
-        .lab-brand-name {
-            font-size: 13px;
+        .nadi-bottom-link {
+            min-height: 68px;
+            font-size: 8.5px;
+        }
+    }
+
+    @media (max-width: 350px) {
+        .nadi-main {
+            padding-right: 10px;
+            padding-left: 10px;
         }
 
-        .lab-nav-actions {
-            gap: 6px;
+        .nadi-greeting-name {
+            max-width: 150px;
         }
 
-        .lab-nav-button,
-        .lab-logout-button {
-            min-height: 37px;
-            padding: 0 10px;
-            font-size: 10px;
-        }
-
-        .nav-label-long {
-            display: none;
-        }
-
-        .nav-label-short {
-            display: inline;
-        }
-
-        .lab-title {
-            margin-top: 9px;
-            font-size: 30px;
-        }
-
-        .lab-description {
-            font-size: 12px;
-        }
-
-        .patient-card > div {
-            padding: 13px 15px;
-        }
-
-        .filter-card {
-            padding: 13px;
-        }
-
-        .filter-grid {
+        .lab-filter-grid,
+        .order-info,
+        .lab-patient {
             grid-template-columns: 1fr;
         }
 
-        .filter-grid .form-group:first-child,
-        .filter-actions {
+        .lab-patient-item:nth-child(2n) {
+            border-left: 0;
+        }
+
+        .lab-patient-item.is-wide,
+        .lab-form-group.is-wide,
+        .order-info-item.is-wide,
+        .lab-filter-actions {
+            grid-column: auto;
+        }
+    }
+
+    /* =========================================================
+       DESKTOP / PC
+       Sama seperti Detail Laboratorium:
+       full width, tanpa wrapper/phone 520px.
+       ========================================================= */
+    @media (min-width: 768px) {
+        .nadi-page {
+            position: relative;
+            left: 50%;
+            width: 100vw;
+            min-height: calc(100svh - 72px);
+            margin-left: -50vw;
+            padding: 26px clamp(24px, 3vw, 48px) 110px;
+        }
+
+        .nadi-phone {
+            width: 100%;
+            max-width: none;
+            margin: 0;
+            overflow: visible;
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            box-shadow: none;
+        }
+
+        .nadi-main {
+            width: 100%;
+            padding: 0;
+        }
+
+        .nadi-header {
+            margin-bottom: 20px;
+        }
+
+        .lab-intro,
+        .lab-patient,
+        .lab-filter,
+        .order-card,
+        .lab-alert,
+        .lab-empty {
+            width: 100%;
+        }
+
+        .lab-intro {
+            padding: 18px 20px;
+        }
+
+        .lab-intro-title {
+            font-size: 20px;
+        }
+
+        .lab-intro-text {
+            font-size: 11.5px;
+        }
+
+        .lab-patient {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .lab-patient-item {
+            padding: 14px 16px;
+        }
+
+        .lab-filter {
+            padding: 16px;
+        }
+
+        .lab-filter-grid {
+            grid-template-columns:
+                minmax(280px, 1.6fr)
+                minmax(170px, .6fr)
+                minmax(150px, .5fr)
+                auto;
+            align-items: end;
+        }
+
+        .lab-form-group.is-wide {
             grid-column: auto;
         }
 
-        .filter-actions {
-            display: grid;
+        .lab-filter-actions {
+            display: flex;
+            grid-column: auto;
+            align-items: center;
+            justify-content: flex-end;
+            margin-top: 0;
+        }
+
+        .lab-btn-primary,
+        .lab-btn-reset {
+            min-height: 40px;
+        }
+
+        .order-header {
+            padding: 15px 17px 13px;
+        }
+
+        .order-header-actions {
+            flex-direction: row;
+            align-items: center;
+        }
+
+        .order-body {
+            padding: 14px 17px 16px;
+        }
+
+        .order-info {
+            grid-template-columns: 1.2fr 1fr 1fr .55fr;
+            gap: 14px 20px;
+        }
+
+        .order-info-item.is-wide {
+            grid-column: auto;
+        }
+
+        .detail-item {
+            font-size: 9.5px;
+        }
+
+        .nadi-bottom-nav {
+            width: 100vw;
+        }
+    }
+
+
+
+    /* =========================================================
+       KONSISTENSI DENGAN MENU UTAMA NADI
+       Desktop full width, typography lebih terbaca,
+       card/spacing/footer mengikuti dashboard menu utama.
+       ========================================================= */
+
+    /* Typography pasien dibuat lebih nyaman dibaca */
+    .lab-label,
+    .info-label {
+        font-size: 10.5px;
+    }
+
+    .lab-value {
+        font-size: 13px;
+    }
+
+    .lab-form-label {
+        font-size: 11px;
+    }
+
+    .lab-form-control {
+        font-size: 12px;
+    }
+
+    .lab-btn-primary,
+    .lab-btn-reset,
+    .lab-btn-detail,
+    .infinite-retry {
+        font-size: 11px;
+    }
+
+    .order-number {
+        font-size: 15px;
+    }
+
+    .order-date,
+    .info-value,
+    .detail-title,
+    .detail-item,
+    .infinite-loader,
+    .infinite-scroll-error {
+        font-size: 11px;
+    }
+
+    .status-badge,
+    .lab-result-count {
+        font-size: 10.5px;
+    }
+
+    /* Footer harus selalu tersedia seperti menu utama */
+    .nadi-bottom-nav {
+        position: fixed !important;
+        z-index: 99999 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        display: grid !important;
+        width: 100% !important;
+        max-width: none !important;
+        grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+        transform: none !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+    }
+
+    /* =========================================================
+       DESKTOP / PC - mengikuti dashboard menu NADI
+       ========================================================= */
+    @media (min-width: 1024px) {
+        .nadi-page {
+            position: relative;
+            left: 50%;
+            width: 100vw;
+            min-height: 100vh;
+            margin-left: -50vw;
+            padding: 28px clamp(28px, 3vw, 56px) 110px;
+        }
+
+        .nadi-phone {
             width: 100%;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+            max-width: none;
+            margin: 0;
+            overflow: visible;
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            box-shadow: none;
+        }
+
+        .nadi-main {
+            width: 100%;
+            padding: 0 0 88px;
+        }
+
+        .nadi-header {
+            margin-bottom: 20px;
+            padding: 0 2px 18px;
+            border-bottom: 1px solid rgba(22, 58, 147, .08);
+        }
+
+        .nadi-greeting-small {
+            font-size: 13px;
+        }
+
+        .nadi-greeting-name {
+            max-width: min(520px, 45vw);
+            font-size: 30px;
+        }
+
+        .lab-intro {
+            margin-bottom: 16px;
+            padding: 20px;
+            border-radius: 22px;
+        }
+
+        .lab-intro-icon {
+            width: 52px;
+            height: 52px;
+            flex-basis: 52px;
+            border-radius: 15px;
+        }
+
+        .lab-intro-title {
+            font-size: 20px;
+        }
+
+        .lab-intro-text {
+            max-width: 820px;
+            font-size: 12px;
+        }
+
+        /* Identitas pasien dibuat satu baris seperti information strip */
+        .lab-patient {
+            grid-template-columns: minmax(0, 1.5fr) minmax(180px, .65fr) minmax(180px, .65fr);
+            margin-bottom: 16px;
+            border-radius: 18px;
+        }
+
+        .lab-patient-item,
+        .lab-patient-item.is-wide {
+            grid-column: auto;
+            padding: 15px 18px;
+            border-top: 0;
+        }
+
+        .lab-patient-item + .lab-patient-item,
+        .lab-patient-item:nth-child(2n) {
+            border-left: 1px solid #edf2f7;
+        }
+
+        .lab-label {
+            margin-bottom: 5px;
+            font-size: 11px;
+        }
+
+        .lab-value {
+            font-size: 14px;
+        }
+
+        .lab-filter {
+            margin-bottom: 18px;
+            padding: 18px;
+            border-radius: 20px;
+        }
+
+        .lab-filter-title {
+            margin-bottom: 13px;
+            font-size: 14px;
+        }
+
+        .lab-filter-grid {
+            grid-template-columns:
+                minmax(320px, 1.7fr)
+                minmax(180px, .55fr)
+                minmax(160px, .5fr)
+                auto;
+            gap: 12px;
+            align-items: end;
+        }
+
+        .lab-form-group.is-wide,
+        .lab-filter-actions {
+            grid-column: auto;
+        }
+
+        .lab-form-label {
+            font-size: 11px;
+        }
+
+        .lab-form-control {
+            height: 44px;
+            font-size: 12.5px;
+        }
+
+        .lab-filter-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 9px;
+            margin-top: 0;
+        }
+
+        .lab-btn-primary,
+        .lab-btn-reset {
+            min-height: 44px;
+            padding: 0 16px;
+            font-size: 11.5px;
+        }
+
+        .lab-result-head {
+            margin: 3px 2px 12px;
+        }
+
+        .lab-result-title {
+            font-size: 18px;
+        }
+
+        .lab-result-count {
+            padding: 6px 10px;
+            font-size: 11px;
+        }
+
+        .order-card {
+            margin-bottom: 14px;
+            border-radius: 20px;
+            box-shadow: 0 10px 28px rgba(20, 70, 130, .055);
+        }
+
+        .order-header {
+            align-items: center;
+            padding: 16px 18px 14px;
+        }
+
+        .order-number {
+            font-size: 16px;
+        }
+
+        .order-date {
+            margin-top: 5px;
+            font-size: 11.5px;
+        }
+
+        .order-header-actions {
+            flex-direction: row;
+            align-items: center;
             gap: 8px;
         }
 
-        .filter-actions .btn-primary,
-        .filter-actions .btn-secondary {
-            width: 100%;
-            min-width: 0;
+        .status-badge {
+            min-height: 30px;
+            padding: 0 10px;
+            font-size: 10.5px;
         }
 
-        .order-header,
+        .lab-btn-detail {
+            min-height: 34px;
+            padding: 0 12px;
+            font-size: 10.5px;
+        }
+
         .order-body {
-            padding: 14px;
+            padding: 16px 18px 18px;
+        }
+
+        .order-info {
+            grid-template-columns: 1.25fr 1fr 1fr .55fr;
+            gap: 14px 22px;
+        }
+
+        .order-info-item.is-wide {
+            grid-column: auto;
+        }
+
+        .info-label {
+            margin-bottom: 5px;
+            font-size: 10.5px;
+        }
+
+        .info-value {
+            font-size: 12.5px;
+        }
+
+        .detail-section {
+            margin-top: 14px;
+            padding-top: 13px;
+        }
+
+        .detail-title {
+            margin-bottom: 10px;
+            font-size: 12px;
+        }
+
+        .detail-list {
+            gap: 7px;
+        }
+
+        .detail-item {
+            padding: 7px 10px;
+            font-size: 11px;
+        }
+
+        /* Footer desktop sama seperti menu NADI */
+        .nadi-bottom-nav {
+            border-top: 1px solid #e1e9f2 !important;
+            background: rgba(255, 255, 255, .97) !important;
+            box-shadow: 0 -7px 22px rgba(15, 45, 115, .08) !important;
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+        }
+
+        .nadi-bottom-link {
+            min-height: 66px;
+            flex-direction: row;
+            gap: 8px;
+            font-size: 12px;
+        }
+
+        .nadi-bottom-link svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .nadi-bottom-link.is-active::after {
+            right: 38%;
+            bottom: 5px;
+            left: 38%;
+        }
+    }
+
+    /* =========================================================
+       TABLET
+       ========================================================= */
+    @media (min-width: 768px) and (max-width: 1023px) {
+        .nadi-page {
+            padding: 24px 22px 110px;
+        }
+
+        .nadi-phone {
+            width: 100%;
+            max-width: none;
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            box-shadow: none;
+        }
+
+        .nadi-main {
+            padding: 0 0 90px;
+        }
+
+        .lab-patient {
+            grid-template-columns: 1.3fr .7fr .7fr;
+        }
+
+        .lab-patient-item.is-wide {
+            grid-column: auto;
+            border-top: 0;
+        }
+
+        .lab-filter-grid {
+            grid-template-columns: minmax(0, 1.5fr) minmax(150px, .6fr) minmax(130px, .5fr);
+        }
+
+        .lab-filter-actions {
+            grid-column: 1 / -1;
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .order-info {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .order-info-item.is-wide {
+            grid-column: auto;
+        }
+    }
+
+    /* =========================================================
+       MOBILE - tetap seperti aplikasi NADI
+       ========================================================= */
+    @media (max-width: 767px), (hover: none) and (pointer: coarse) {
+        .nadi-bottom-nav {
+            padding-bottom: max(6px, env(safe-area-inset-bottom)) !important;
+            background: rgba(255,255,255,.98) !important;
+            box-shadow: 0 -8px 24px rgba(15,45,115,.12) !important;
+            -webkit-transform: translateZ(0);
+            transform: translateZ(0);
+        }
+
+        .nadi-main {
+            padding-bottom: calc(100px + env(safe-area-inset-bottom)) !important;
+        }
+
+        .nadi-bottom-link {
+            min-width: 0;
+            min-height: 68px;
+            font-size: 9px;
+        }
+    }
+
+    @media (max-width: 420px) {
+        .lab-intro-text {
+            font-size: 11.5px;
+        }
+
+        .lab-label,
+        .info-label,
+        .lab-form-label {
+            font-size: 10px;
+        }
+
+        .lab-value,
+        .info-value,
+        .lab-form-control {
+            font-size: 12px;
+        }
+
+        .order-number {
+            font-size: 14px;
+        }
+
+        .order-date {
+            font-size: 10.5px;
+        }
+
+        .status-badge,
+        .lab-result-count,
+        .lab-btn-detail,
+        .detail-item {
+            font-size: 10px;
         }
     }
 
 </style>
 
-@php
-    $patientName = data_get($patient, 'name', '-');
-    $medicalRecord = data_get($patient, 'medical_record', '-');
-    $birthDate = data_get($patient, 'birth_date');
-
-    // Gunakan route logout aplikasi bila tersedia.
-    $logoutRouteName = null;
-
-    if (Route::has('layanan.logout')) {
-        $logoutRouteName = 'layanan.logout';
-    } elseif (Route::has('logout')) {
-        $logoutRouteName = 'logout';
-    }
-@endphp
-
-<div class="lab-page">
-    <div class="lab-container">
-        <div class="lab-topbar">
-            <div class="lab-brand">
-                <div class="lab-brand-logo-shell">
-                    <img
-                        class="lab-brand-logo"
-                        src="{{ asset('images/logo-rsbm.png') }}"
-                        alt="Logo RSUD Bali Mandara"
-                        onerror="this.style.display='none'; this.nextElementSibling.style.display='grid';"
-                    >
-                    <span class="lab-brand-fallback" aria-hidden="true">+</span>
-                </div>
-
-                <div>
-                    <div class="lab-brand-government">Pemerintah Provinsi Bali</div>
-                    <div class="lab-brand-name">RSUD Bali Mandara</div>
-                    <div class="lab-brand-location">Sanur · Denpasar · Bali</div>
-                </div>
-            </div>
-
-            <div class="lab-nav-actions">
-                <a
-                    href="{{ route('layanan.menu') }}"
-                    class="lab-nav-button"
-                    aria-label="Kembali ke menu layanan"
-                >
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                        <path d="M4 10.5L12 4L20 10.5V20H14V14H10V20H4V10.5Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" />
-                    </svg>
-                    <span class="nav-label-long">Menu Layanan</span>
-                    <span class="nav-label-short">Menu</span>
-                </a>
-
-                @if($logoutRouteName)
-                    <form
-                        method="POST"
-                        action="{{ route($logoutRouteName) }}"
-                        class="lab-logout-form"
-                    >
-                        @csrf
-                        <button
-                            type="submit"
-                            class="lab-logout-button"
-                            aria-label="Keluar dari SAPA RSBM"
-                        >
-                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                                <path d="M10 5H6C4.9 5 4 5.9 4 7V17C4 18.1 4.9 19 6 19H10" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-                                <path d="M14 8L18 12L14 16M18 12H9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                            </svg>
-                            <span class="nav-label-long">Logout</span>
-                            <span class="nav-label-short">Keluar</span>
-                        </button>
-                    </form>
-                @else
-                    <a
-                        href="{{ url('/') }}"
-                        class="lab-logout-button"
-                        aria-label="Kembali ke halaman awal"
-                    >
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                            <path d="M10 5H6C4.9 5 4 5.9 4 7V17C4 18.1 4.9 19 6 19H10" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-                            <path d="M14 8L18 12L14 16M18 12H9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+<section class="nadi-page">
+    <div class="nadi-phone">
+        <main class="nadi-main">
+            {{-- Header NADI --}}
+            <header class="nadi-header">
+                <div class="nadi-welcome">
+                    <div class="nadi-user-icon" aria-hidden="true">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                            <circle cx="12" cy="8" r="4" fill="currentColor"/>
+                            <path d="M4 21C4.7 16.4 7.3 14 12 14C16.7 14 19.3 16.4 20 21" fill="currentColor"/>
                         </svg>
-                        <span class="nav-label-long">Keluar</span>
-                        <span class="nav-label-short">Keluar</span>
+                    </div>
+
+                    <div class="nadi-greeting">
+                        <div class="nadi-greeting-small">Selamat Datang,</div>
+                        <div class="nadi-greeting-name">
+                            {{ $patientName ?: 'Pasien' }}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="nadi-header-actions">
+                    <a
+                        href="{{ $mainMenuUrl }}"
+                        class="nadi-icon-button"
+                        aria-label="Kembali ke menu"
+                        title="Kembali ke menu"
+                    >
+                        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
                     </a>
-                @endif
-            </div>
-        </div>
 
-        <div class="lab-header">
-            <div>
-                <span class="lab-eyebrow">
-                    SAPA RSBM · Laboratorium
-                </span>
-            </div>
-
-         
-        </div>
-
-        <div class="patient-card">
-            <div>
-                <div class="patient-label">Nama Pasien</div>
-                <div class="patient-value">
-                    {{ $patientName }}
-                </div>
-            </div>
-
-            <div>
-                <div class="patient-label">Nomor Rekam Medis</div>
-                <div class="patient-value">
-                    {{ $medicalRecord }}
-                </div>
-            </div>
-
-            <div>
-                <div class="patient-label">Tanggal Lahir</div>
-                <div class="patient-value">
-                    @if($birthDate)
-                        {{ \Carbon\Carbon::parse($birthDate)->format('d-m-Y') }}
-                    @else
-                        -
-                    @endif
-                </div>
-            </div>
-        </div>
-
-        @if(data_get($result, 'is_error'))
-            <div class="error-card">
-                {{ data_get(
-                    $result,
-                    'message',
-                    'API laboratorium belum berhasil diakses.'
-                ) }}
-            </div>
-        @else
-            <!-- <div class="summary-grid">
-                <div class="summary-box">
-                    <div class="summary-label">Total Order</div>
-                    <div class="summary-value">
-                        {{ $summary['total'] ?? 0 }}
-                    </div>
-                </div>
-
-                <div class="summary-box">
-                    <div class="summary-label">Terverifikasi</div>
-                    <div class="summary-value">
-                        {{ $summary['verified'] ?? 0 }}
-                    </div>
-                </div>
-
-                <div class="summary-box">
-                    <div class="summary-label">Patologi Klinik</div>
-                    <div class="summary-value">
-                        {{ $summary['clinical_pathology'] ?? 0 }}
-                    </div>
-                </div>
-
-                <div class="summary-box">
-                    <div class="summary-label">Patologi Anatomi</div>
-                    <div class="summary-value">
-                        {{ $summary['anatomical_pathology'] ?? 0 }}
-                    </div>
-                </div>
-            </div> -->
-
-            <div class="filter-card">
-                <form
-                    method="GET"
-                    action="{{ route('laboratory.index') }}">
-
-                    <div class="filter-grid">
-                        <div class="form-group">
-                            <label class="form-label">
-                                Cari Pemeriksaan
-                            </label>
-
-                            <input
-                                type="text"
-                                name="keyword"
-                                class="form-control"
-                                value="{{ request('keyword') }}"
-                                placeholder="No order, dokter, ruangan, pemeriksaan...">
-                        </div>
-
-                        <div class="form-group">
-                            <label class="form-label">Status</label>
-
-                            <select
-                                name="status"
-                                class="form-control">
-
-                                <option value="ALL">
-                                    Semua Status
-                                </option>
-
-                                <option
-                                    value="verifikasi"
-                                    {{ request('status') === 'verifikasi'
-                                        ? 'selected'
-                                        : '' }}>
-                                    Verifikasi
-                                </option>
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <label class="form-label">Tahun</label>
-
-                            <select
-                                name="tahun"
-                                class="form-control">
-
-                                <option value="ALL">
-                                    Semua Tahun
-                                </option>
-
-                                @foreach($yearOptions as $year)
-                                    <option
-                                        value="{{ $year }}"
-                                        {{ request('tahun') == $year
-                                            ? 'selected'
-                                            : '' }}>
-                                        {{ $year }}
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
-
-                        <div class="filter-actions">
+                    @if($logoutRouteName)
+                        <form
+                            method="POST"
+                            action="{{ route($logoutRouteName) }}"
+                            class="nadi-logout-form"
+                        >
+                            @csrf
                             <button
                                 type="submit"
-                                class="btn-primary">
-                                Terapkan
+                                class="nadi-logout-button"
+                                aria-label="Logout"
+                                title="Logout"
+                            >
+                                <svg width="21" height="21" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                    <path d="M10 5H6C4.9 5 4 5.9 4 7V17C4 18.1 4.9 19 6 19H10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                    <path d="M14 8L18 12L14 16M18 12H9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                </svg>
                             </button>
+                        </form>
+                    @endif
+                </div>
+            </header>
 
-                            <a
-                                href="{{ route('laboratory.index') }}"
-                                class="btn-secondary">
-                                Reset
-                            </a>
-                        </div>
+            {{-- Intro Laboratorium --}}
+            <section class="lab-intro">
+                <div class="lab-intro-head">
+                    <div class="lab-intro-icon" aria-hidden="true">
+                        <svg width="27" height="27" viewBox="0 0 24 24" fill="none">
+                            <path d="M9 3V8L5.5 15.2C4.2 17.9 6.2 21 9.2 21H14.8C17.8 21 19.8 17.9 18.5 15.2L15 8V3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M8 3H16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            <path d="M7.5 14H16.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                            <circle cx="10" cy="17" r="1" fill="currentColor"/>
+                            <circle cx="14" cy="16" r="1" fill="currentColor"/>
+                        </svg>
                     </div>
-                </form>
-            </div>
 
-            @php
-                /*
-                 * Pertahankan filter saat mengambil page berikutnya.
-                 */
-                $orders->appends(request()->except('page'));
-            @endphp
-
-            <div id="order-list">
-                @forelse($orders as $order)
-                    <article class="order-card">
-                    <div class="order-header">
-    <div>
-        <div class="order-number">
-            {{ data_get(
-                $order,
-                'order_number',
-                '-'
-            ) }}
-        </div>
-
-        <div class="order-date">
-            @php
-                $orderDate = data_get(
-                    $order,
-                    'order_date'
-                );
-            @endphp
-
-            @if($orderDate)
-                {{ \Carbon\Carbon::parse(
-                    $orderDate
-                )->format('d-m-Y H:i') }}
-            @else
-                -
-            @endif
-
-            · Registrasi:
-            {{ data_get(
-                $order,
-                'registration_number',
-                '-'
-            ) }}
-        </div>
-    </div>
-
-    <div class="order-header-actions">
-        <span class="status-badge">
-            {{ data_get(
-                $order,
-                'status',
-                '-'
-            ) }}
-        </span>
-
-        @php
-            $detailNoOrder = trim(
-                (string) data_get(
-                    $order,
-                    'order_number',
-                    ''
-                )
-            );
-
-            $detailLab = trim(
-                (string) data_get(
-                    $order,
-                    'destination_room',
-                    ''
-                )
-            );
-
-            $canViewDetail =
-                $detailNoOrder !== ''
-                && $detailLab !== '';
-        @endphp
-
-        @if($canViewDetail)
-            <a
-                href="{{ route('laboratory.detail', [
-                    'noOrder' => $detailNoOrder,
-                    'lab' => $detailLab,
-                ]) }}"
-                class="btn-detail"
-            >
-                Lihat Detail
-            </a>
-        @else
-            <span
-                class="btn-detail is-disabled"
-                title="Nomor order hasil laboratorium belum tersedia"
-            >
-                Belum Tersedia
-            </span>
-        @endif
-    </div>
-</div>
-
-                    <div class="order-body">
-                        <div class="order-info">
-                            <div>
-                                <div class="info-label">
-                                    Dokter
-                                </div>
-
-                                <div class="info-value">
-                                    {{ data_get(
-                                        $order,
-                                        'doctor',
-                                        '-'
-                                    ) }}
-                                </div>
-                            </div>
-
-                            <div>
-                                <div class="info-label">
-                                    Ruangan Asal
-                                </div>
-
-                                <div class="info-value">
-                                    {{ data_get(
-                                        $order,
-                                        'origin_room',
-                                        '-'
-                                    ) }}
-                                </div>
-                            </div>
-
-                            <div>
-                                <div class="info-label">
-                                    Laboratorium Tujuan
-                                </div>
-
-                                <div class="info-value">
-                                    {{ data_get(
-                                        $order,
-                                        'destination_room',
-                                        '-'
-                                    ) }}
-                                </div>
-                            </div>
-
-                            <div>
-                                <div class="info-label">
-                                    Jumlah Pemeriksaan
-                                </div>
-
-                                <div class="info-value">
-                                    {{ count(
-                                        data_get(
-                                            $order,
-                                            'details',
-                                            []
-                                        )
-                                    ) }}
-                                    pemeriksaan
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="detail-title">
-                            Daftar pemeriksaan
-                        </div>
-
-                        <div class="detail-list">
-                            @forelse(
-                                data_get($order, 'details', [])
-                                as $detail
-                            )
-                                <span class="detail-item">
-                                    {{ data_get(
-                                        $detail,
-                                        'name',
-                                        '-'
-                                    ) }}
-                                </span>
-                            @empty
-                                <span class="detail-item">
-                                    Detail pemeriksaan tidak tersedia
-                                </span>
-                            @endforelse
-                        </div>
-                    </div>
-                    </article>
-                @empty
-                    <div class="empty-card">
-                        Belum ada riwayat pemeriksaan laboratorium
-                        yang sesuai dengan filter.
-                    </div>
-                @endforelse
-            </div>
-
-            @if($orders->hasMorePages())
-                <div
-                    id="infinite-scroll-sentinel"
-                    class="infinite-scroll-sentinel"
-                    data-next-url="{{ $orders->nextPageUrl() }}"
-                >
-                    <div class="infinite-loader">
-                        <span
-                            class="loading-spinner"
-                            aria-hidden="true"
-                        ></span>
-
-                        <span>
-                            Memuat riwayat berikutnya...
-                        </span>
+                    <div>
+                        <h1 class="lab-intro-title">Hasil Laboratorium</h1>
+                        <p class="lab-intro-text">
+                            Lihat riwayat order, status pemeriksaan, dokter, dan rincian pemeriksaan laboratorium.
+                        </p>
                     </div>
                 </div>
+            </section>
+
+            {{-- Identitas pasien - sama seperti Detail Laboratorium --}}
+            <section class="lab-patient" aria-label="Identitas pasien">
+                <div class="lab-patient-item is-wide">
+                    <div class="lab-label">Nama Pasien</div>
+                    <div class="lab-value">{{ $patientName ?: 'Pasien' }}</div>
+                </div>
+
+                <div class="lab-patient-item">
+                    <div class="lab-label">No. Rekam Medis</div>
+                    <div class="lab-value">{{ $medicalRecord ?: '-' }}</div>
+                </div>
+
+                <div class="lab-patient-item">
+                    <div class="lab-label">Tanggal Lahir</div>
+                    <div class="lab-value">{{ $birthDateLabel }}</div>
+                </div>
+            </section>
+
+            @if(data_get($result, 'is_error'))
+                <div class="lab-alert">
+                    {{ data_get(
+                        $result,
+                        'message',
+                        'API laboratorium belum berhasil diakses.'
+                    ) }}
+                </div>
+            @else
+                {{-- Filter --}}
+                <section class="lab-filter">
+                    <div class="lab-filter-title">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <path d="M4 6H20M7 12H17M10 18H14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                        <span>Filter Pemeriksaan</span>
+                    </div>
+
+                    <form method="GET" action="{{ route('laboratory.index') }}">
+                        <div class="lab-filter-grid">
+                            <div class="lab-form-group is-wide">
+                                <label class="lab-form-label">Cari Pemeriksaan</label>
+                                <input
+                                    type="text"
+                                    name="keyword"
+                                    class="lab-form-control"
+                                    value="{{ request('keyword') }}"
+                                    placeholder="No order, dokter, ruangan, pemeriksaan..."
+                                >
+                            </div>
+
+                            <div class="lab-form-group">
+                                <label class="lab-form-label">Status</label>
+                                <select name="status" class="lab-form-control">
+                                    <option
+                                        value="ALL"
+                                        {{ request('status', 'ALL') === 'ALL' ? 'selected' : '' }}
+                                    >
+                                        Semua Status
+                                    </option>
+                                    <option
+                                        value="verifikasi"
+                                        {{ request('status') === 'verifikasi' ? 'selected' : '' }}
+                                    >
+                                        Verifikasi
+                                    </option>
+                                </select>
+                            </div>
+
+                            <div class="lab-form-group">
+                                <label class="lab-form-label">Tahun</label>
+                                <select name="tahun" class="lab-form-control">
+                                    <option
+                                        value="ALL"
+                                        {{ request('tahun', 'ALL') === 'ALL' ? 'selected' : '' }}
+                                    >
+                                        Semua Tahun
+                                    </option>
+
+                                    @foreach($yearOptions as $year)
+                                        <option
+                                            value="{{ $year }}"
+                                            {{ request('tahun') == $year ? 'selected' : '' }}
+                                        >
+                                            {{ $year }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            <div class="lab-filter-actions">
+                                <button type="submit" class="lab-btn-primary">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                        <path d="M4 5H20L14 12V18L10 20V12L4 5Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+                                    </svg>
+                                    <span>Terapkan Filter</span>
+                                </button>
+
+                                <a href="{{ route('laboratory.index') }}" class="lab-btn-reset">
+                                    Reset
+                                </a>
+                            </div>
+                        </div>
+                    </form>
+                </section>
+
+                @php
+                    /* Pertahankan filter saat mengambil page berikutnya. */
+                    $orders->appends(request()->except('page'));
+                @endphp
+
+                <div class="lab-result-head">
+                    <h2 class="lab-result-title">Riwayat Pemeriksaan</h2>
+                    <span class="lab-result-count">
+                        {{ $orders->count() }} Data
+                    </span>
+                </div>
+
+                <div id="order-list">
+                    @forelse($orders as $order)
+                        @php
+                            $orderDate = data_get($order, 'order_date');
+
+                            $detailNoOrder = trim(
+                                (string) data_get($order, 'order_number', '')
+                            );
+
+                            $detailLab = trim(
+                                (string) data_get($order, 'destination_room', '')
+                            );
+
+                            $canViewDetail =
+                                $detailNoOrder !== ''
+                                && $detailLab !== '';
+
+                            $detailItems = data_get($order, 'details', []);
+                        @endphp
+
+                        <article class="order-card">
+                            <div class="order-header">
+                                <div class="order-main">
+                                    <div class="order-number">
+                                        {{ data_get($order, 'order_number', '-') }}
+                                    </div>
+
+                                    <div class="order-date">
+                                        @if($orderDate)
+                                            {{ \Carbon\Carbon::parse($orderDate)->format('d-m-Y H:i') }}
+                                        @else
+                                            -
+                                        @endif
+
+                                        &nbsp;·&nbsp;
+                                        Registrasi {{ data_get($order, 'registration_number', '-') }}
+                                    </div>
+                                </div>
+
+                                <div class="order-header-actions">
+                                    <span class="status-badge">
+                                        {{ data_get($order, 'status', '-') }}
+                                    </span>
+
+                                    @if($canViewDetail)
+                                        <a
+                                            href="{{ route('laboratory.detail', [
+                                                'noOrder' => $detailNoOrder,
+                                                'lab' => $detailLab,
+                                            ]) }}"
+                                            class="lab-btn-detail"
+                                        >
+                                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                                <path d="M2.5 12S6 6.5 12 6.5S21.5 12 21.5 12S18 17.5 12 17.5S2.5 12 2.5 12Z" stroke="currentColor" stroke-width="2"/>
+                                                <circle cx="12" cy="12" r="2.5" stroke="currentColor" stroke-width="2"/>
+                                            </svg>
+                                            <span>Lihat Detail</span>
+                                        </a>
+                                    @else
+                                        <span
+                                            class="lab-btn-detail is-disabled"
+                                            title="Nomor order hasil laboratorium belum tersedia"
+                                        >
+                                            Belum Tersedia
+                                        </span>
+                                    @endif
+                                </div>
+                            </div>
+
+                            <div class="order-body">
+                                <div class="order-info">
+                                    <div class="order-info-item is-wide">
+                                        <div class="info-label">Dokter</div>
+                                        <div class="info-value">
+                                            {{ data_get($order, 'doctor', '-') ?: '-' }}
+                                        </div>
+                                    </div>
+
+                                    <div class="order-info-item">
+                                        <div class="info-label">Ruangan Asal</div>
+                                        <div class="info-value">
+                                            {{ data_get($order, 'origin_room', '-') ?: '-' }}
+                                        </div>
+                                    </div>
+
+                                    <div class="order-info-item">
+                                        <div class="info-label">Laboratorium Tujuan</div>
+                                        <div class="info-value">
+                                            {{ data_get($order, 'destination_room', '-') ?: '-' }}
+                                        </div>
+                                    </div>
+
+                                    <div class="order-info-item is-wide">
+                                        <div class="info-label">Jumlah Pemeriksaan</div>
+                                        <div class="info-value">
+                                            {{ count($detailItems) }} pemeriksaan
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="detail-section">
+                                    <div class="detail-title">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                            <path d="M9 3V8L5.5 15.2C4.2 17.9 6.2 21 9.2 21H14.8C17.8 21 19.8 17.9 18.5 15.2L15 8V3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                            <path d="M8 3H16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                        </svg>
+                                        <span>Daftar Pemeriksaan</span>
+                                    </div>
+
+                                    <div class="detail-list">
+                                        @forelse($detailItems as $detail)
+                                            <span class="detail-item">
+                                                {{ data_get($detail, 'name', '-') }}
+                                            </span>
+                                        @empty
+                                            <span class="detail-item">
+                                                Detail pemeriksaan tidak tersedia
+                                            </span>
+                                        @endforelse
+                                    </div>
+                                </div>
+                            </div>
+                        </article>
+                    @empty
+                        <div class="lab-empty">
+                            Belum ada riwayat pemeriksaan laboratorium yang sesuai dengan filter.
+                        </div>
+                    @endforelse
+                </div>
+
+                @if($orders->hasMorePages())
+                    <div
+                        id="infinite-scroll-sentinel"
+                        class="infinite-scroll-sentinel"
+                        data-next-url="{{ $orders->nextPageUrl() }}"
+                    >
+                        <div class="infinite-loader">
+                            <span class="loading-spinner" aria-hidden="true"></span>
+                            <span>Memuat riwayat berikutnya...</span>
+                        </div>
+                    </div>
+                @endif
             @endif
-        @endif
+        </main>
+
+        {{-- Bottom navigation mengikuti menu utama --}}
+        <nav class="nadi-bottom-nav" aria-label="Navigasi utama">
+            <a href="{{ $mainMenuUrl }}" class="nadi-bottom-link">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M3 11L12 3L21 11V21H14V15H10V21H3V11Z" fill="currentColor"/>
+                </svg>
+                <span>Beranda</span>
+            </a>
+
+            <a href="{{ $mainMenuUrl }}#menu-layanan" class="nadi-bottom-link is-active">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <rect x="3" y="3" width="7" height="7" rx="2" stroke="currentColor" stroke-width="2"/>
+                    <rect x="14" y="3" width="7" height="7" rx="2" stroke="currentColor" stroke-width="2"/>
+                    <rect x="3" y="14" width="7" height="7" rx="2" stroke="currentColor" stroke-width="2"/>
+                    <rect x="14" y="14" width="7" height="7" rx="2" stroke="currentColor" stroke-width="2"/>
+                </svg>
+                <span>Layanan</span>
+            </a>
+
+            <a href="{{ $routeOrUrl('riwayat.index', '/riwayat') }}" class="nadi-bottom-link">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/>
+                    <path d="M12 7V12L15.5 14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                <span>Riwayat</span>
+            </a>
+
+            <a href="{{ $routeOrUrl('bantuan.index', '/bantuan') }}" class="nadi-bottom-link">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M4 13V11C4 6.6 7.6 3 12 3C16.4 3 20 6.6 20 11V13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    <rect x="2.5" y="11.5" width="4" height="7" rx="2" fill="currentColor"/>
+                    <rect x="17.5" y="11.5" width="4" height="7" rx="2" fill="currentColor"/>
+                </svg>
+                <span>Bantuan</span>
+            </a>
+
+            <a href="{{ $routeOrUrl('profile.index', '/profil') }}" class="nadi-bottom-link">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="2"/>
+                    <path d="M5 21C5.8 16.8 8.1 14.5 12 14.5C15.9 14.5 18.2 16.8 19 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                <span>Profil</span>
+            </a>
+        </nav>
     </div>
-</div>
+</section>
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     const orderList = document.getElementById('order-list');
-    const sentinel = document.getElementById(
-        'infinite-scroll-sentinel'
-    );
+    const sentinel = document.getElementById('infinite-scroll-sentinel');
 
     if (!orderList || !sentinel) {
         return;
@@ -1712,72 +1846,42 @@ document.addEventListener('DOMContentLoaded', function () {
             });
 
             if (!response.ok) {
-                throw new Error(
-                    'HTTP ' + response.status
-                );
+                throw new Error('HTTP ' + response.status);
             }
 
             const html = await response.text();
-
             const parser = new DOMParser();
-
-            const nextDocument = parser.parseFromString(
-                html,
-                'text/html'
-            );
-
-            const nextOrderList =
-                nextDocument.getElementById(
-                    'order-list'
-                );
+            const nextDocument = parser.parseFromString(html, 'text/html');
+            const nextOrderList = nextDocument.getElementById('order-list');
 
             if (!nextOrderList) {
-                throw new Error(
-                    'Daftar order halaman berikutnya tidak ditemukan.'
-                );
+                throw new Error('Daftar order halaman berikutnya tidak ditemukan.');
             }
 
-            const newOrders =
-                nextOrderList.querySelectorAll(
-                    '.order-card'
-                );
+            const newOrders = nextOrderList.querySelectorAll('.order-card');
 
             if (!newOrders.length) {
                 finishInfiniteScroll();
                 return;
             }
 
-            const fragment =
-                document.createDocumentFragment();
+            const fragment = document.createDocumentFragment();
 
             newOrders.forEach(function (order) {
-                fragment.appendChild(
-                    order.cloneNode(true)
-                );
+                fragment.appendChild(order.cloneNode(true));
             });
 
             orderList.appendChild(fragment);
 
-            const nextSentinel =
-                nextDocument.getElementById(
-                    'infinite-scroll-sentinel'
-                );
+            const nextSentinel = nextDocument.getElementById('infinite-scroll-sentinel');
 
-            if (
-                nextSentinel
-                && nextSentinel.dataset.nextUrl
-            ) {
-                sentinel.dataset.nextUrl =
-                    nextSentinel.dataset.nextUrl;
+            if (nextSentinel && nextSentinel.dataset.nextUrl) {
+                sentinel.dataset.nextUrl = nextSentinel.dataset.nextUrl;
             } else {
                 finishInfiniteScroll();
             }
         } catch (error) {
-            console.error(
-                'Infinite scroll laboratorium:',
-                error
-            );
-
+            console.error('Infinite scroll laboratorium:', error);
             showError();
         } finally {
             isLoading = false;
@@ -1801,10 +1905,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
         sentinel.innerHTML = `
             <div class="infinite-scroll-error">
-                <span>
-                    Data berikutnya gagal dimuat.
-                </span>
-
+                <span>Data berikutnya gagal dimuat.</span>
                 <button
                     type="button"
                     class="infinite-retry"
@@ -1815,10 +1916,7 @@ document.addEventListener('DOMContentLoaded', function () {
             </div>
         `;
 
-        const retryButton =
-            document.getElementById(
-                'infinite-retry'
-            );
+        const retryButton = document.getElementById('infinite-retry');
 
         if (!retryButton) {
             return;
@@ -1829,14 +1927,8 @@ document.addEventListener('DOMContentLoaded', function () {
             function () {
                 sentinel.innerHTML = `
                     <div class="infinite-loader">
-                        <span
-                            class="loading-spinner"
-                            aria-hidden="true"
-                        ></span>
-
-                        <span>
-                            Memuat riwayat berikutnya...
-                        </span>
+                        <span class="loading-spinner" aria-hidden="true"></span>
+                        <span>Memuat riwayat berikutnya...</span>
                     </div>
                 `;
 
@@ -1846,20 +1938,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
                 loadNextPage();
             },
-            {
-                once: true
-            }
+            { once: true }
         );
     }
 
     observer = new IntersectionObserver(
         function (entries) {
             entries.forEach(function (entry) {
-                if (
-                    entry.isIntersecting
-                    && !isLoading
-                    && !isFinished
-                ) {
+                if (entry.isIntersecting && !isLoading && !isFinished) {
                     loadNextPage();
                 }
             });
