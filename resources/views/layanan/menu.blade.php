@@ -103,10 +103,10 @@
             'class' => 'is-blue',
         ],
         [
-            'title' => 'Jadwal Dokter',
-            'description' => 'Lihat jadwal praktik dokter dan layanan poliklinik yang tersedia.',
-            'icon' => 'doctor-calendar',
-            'url' => $routeOrUrl('jadwal-dokter.index', '/jadwal-dokter'),
+           'title' => 'Aturan Minum Obat',
+            'description' => 'Lihat aturan minum obat yang sesuai dengan registrasi pasien.',
+            'icon' => 'pill',
+            'url' => $routeOrUrl('aturan-minum.index','/aturan-minum-obat'),
             'class' => 'is-green',
         ],
     ];
@@ -129,8 +129,156 @@
     | jam_mulai/start_time/jam + jam_selesai/end_time
     | lokasi/location/ruangan
     */
-    $appointment = $nextAppointment ?? null;
+    /*
+     * Ambil tanggal janji dari seluruh kemungkinan nama field.
+     *
+     * `tanggal_antrean` ditambahkan karena endpoint waktu tunggu / antrean
+     * mengembalikan nama field tersebut.
+     */
+    $getAppointmentDate = static function ($item) {
+        return data_get(
+            $item,
+            'tanggal',
+            data_get(
+                $item,
+                'date',
+                data_get(
+                    $item,
+                    'tglreservasi',
+                    data_get(
+                        $item,
+                        'tanggalreservasi',
+                        data_get(
+                            $item,
+                            'tglkontrol',
+                            data_get($item, 'tanggal_antrean')
+                        )
+                    )
+                )
+            )
+        );
+    };
 
+    /*
+     * Tentukan apakah suatu data masih layak disebut "Kontrol Berikutnya".
+     *
+     * Aturan:
+     * - tanggal lampau                              => jangan tampil
+     * - hari ini, belum teregistrasi                => tampil
+     * - hari ini, sudah teregistrasi + masih aktif  => tampil
+     * - hari ini, menunggu/sedang diperiksa         => tampil
+     * - hari ini, benar-benar selesai               => jangan tampil
+     * - setelah hari ini                            => tampil
+     *
+     * "Sudah Teregistrasi" tidak sama dengan "Sudah Dilayani".
+     */
+    $isUpcomingAppointment = static function ($item) use ($getAppointmentDate): bool {
+        if (!$item) {
+            return false;
+        }
+
+        $dateValue = $getAppointmentDate($item);
+
+        if (!$dateValue) {
+            return false;
+        }
+
+        try {
+            $appointmentDay = \Carbon\Carbon::parse($dateValue)->startOfDay();
+            $today = now()->startOfDay();
+        } catch (\Throwable $e) {
+            return false;
+        }
+
+        // Tanggal lampau tidak ditampilkan.
+        if ($appointmentDay->lt($today)) {
+            return false;
+        }
+
+        // Tanggal setelah hari ini selalu termasuk kontrol/jadwal berikutnya.
+        if ($appointmentDay->gt($today)) {
+            return true;
+        }
+
+        /*
+         * Hari ini:
+         * "Sudah Teregistrasi" BUKAN berarti pelayanan sudah selesai.
+         * Menunggu Pelayanan / Sedang Diperiksa tetap harus tampil.
+         */
+        $truthy = static function ($value): bool {
+            if ($value === null) {
+                return false;
+            }
+
+            if (is_bool($value)) {
+                return $value;
+            }
+
+            if (is_int($value) || is_float($value)) {
+                return (int) $value !== 0;
+            }
+
+            return in_array(
+                strtolower(trim((string) $value)),
+                ['1', 'true', 't', 'yes', 'y'],
+                true
+            );
+        };
+
+        if (!empty(data_get($item, 'tglclosing'))) {
+            return false;
+        }
+
+        if (
+            $truthy(data_get($item, 'isasmed'))
+            || $truthy(data_get($item, 'iscppt_dokter'))
+        ) {
+            return false;
+        }
+
+        if ((int) data_get($item, 'status_order_id', 0) === 6) {
+            return false;
+        }
+
+        $completedStatuses = [
+            'selesai',
+            'sudah closing',
+            'selesai dilayani',
+            'selesai pemeriksaan',
+        ];
+
+        $statusValues = [
+            data_get($item, 'status_pasien'),
+            data_get($item, 'label_statusperiksa'),
+            data_get($item, 'status_asli'),
+            data_get($item, 'status'),
+        ];
+
+        foreach ($statusValues as $statusValue) {
+            $status = strtolower(trim((string) $statusValue));
+
+            if (in_array($status, $completedStatuses, true)) {
+                return false;
+            }
+        }
+
+        return true;
+    };
+
+    $appointment = null;
+
+    /*
+     * 1. Kandidat yang secara eksplisit dikirim controller.
+     */
+    $nextAppointmentCandidate = $nextAppointment ?? null;
+
+    if ($isUpcomingAppointment($nextAppointmentCandidate)) {
+        $appointment = $nextAppointmentCandidate;
+    }
+
+    /*
+     * 2. Cari dari daftar appointment/reservasi.
+     */
     if (!$appointment) {
         $appointmentList = $upcomingAppointments
             ?? $appointments
@@ -140,55 +288,14 @@
                 data_get($patient, 'reservations', [])
             );
 
-        if (is_array($appointmentList) || $appointmentList instanceof \Illuminate\Support\Collection) {
+        if (
+            is_array($appointmentList)
+            || $appointmentList instanceof \Illuminate\Support\Collection
+        ) {
             $appointment = collect($appointmentList)
-                ->filter(function ($item) {
-                    $dateValue = data_get(
-                        $item,
-                        'tanggal',
-                        data_get(
-                            $item,
-                            'date',
-                            data_get(
-                                $item,
-                                'tglreservasi',
-                                data_get(
-                                    $item,
-                                    'tanggalreservasi',
-                                    data_get($item, 'tglkontrol')
-                                )
-                            )
-                        )
-                    );
-
-                    if (!$dateValue) {
-                        return true;
-                    }
-
-                    try {
-                        return \Carbon\Carbon::parse($dateValue)->endOfDay()->gte(now()->startOfDay());
-                    } catch (\Throwable $e) {
-                        return true;
-                    }
-                })
-                ->sortBy(function ($item) {
-                    $dateValue = data_get(
-                        $item,
-                        'tanggal',
-                        data_get(
-                            $item,
-                            'date',
-                            data_get(
-                                $item,
-                                'tglreservasi',
-                                data_get(
-                                    $item,
-                                    'tanggalreservasi',
-                                    data_get($item, 'tglkontrol')
-                                )
-                            )
-                        )
-                    );
+                ->filter($isUpcomingAppointment)
+                ->sortBy(function ($item) use ($getAppointmentDate) {
+                    $dateValue = $getAppointmentDate($item);
 
                     try {
                         return $dateValue
@@ -202,8 +309,18 @@
         }
     }
 
+    /*
+     * 3. Fallback dari session pasien, tetapi tetap wajib lolos filter.
+     */
     if (!$appointment) {
-        $appointment = data_get($patient, 'next_appointment');
+        $sessionNextAppointment = data_get(
+            $patient,
+            'next_appointment'
+        );
+
+        if ($isUpcomingAppointment($sessionNextAppointment)) {
+            $appointment = $sessionNextAppointment;
+        }
     }
 
     $appointmentDoctor = $appointment
@@ -251,23 +368,7 @@
         : null;
 
     $appointmentDateRaw = $appointment
-        ? data_get(
-            $appointment,
-            'tanggal',
-            data_get(
-                $appointment,
-                'date',
-                data_get(
-                    $appointment,
-                    'tglreservasi',
-                    data_get(
-                        $appointment,
-                        'tanggalreservasi',
-                        data_get($appointment, 'tglkontrol')
-                    )
-                )
-            )
-        )
+        ? $getAppointmentDate($appointment)
         : null;
 
     $appointmentStart = $appointment
@@ -2714,7 +2815,7 @@
                             Belum ada kontrol yang akan datang
                         </div>
                         <div class="nadi-empty-text">
-                            Jadwal kontrol hari ini maupun berikutnya akan tampil otomatis di bagian ini.
+                            Jadwal kontrol berikutnya akan tampil otomatis di bagian ini setelah tersedia.
                         </div>
                     </div>
                 </div>
@@ -3011,7 +3112,29 @@
                                         <path d="M15.5 16H18.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
                                     </svg>
                                     @break
-
+                                @case('pill')
+                                    <svg
+                                        width="28"
+                                        height="28"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        aria-hidden="true"
+                                    >
+                                        <path
+                                            d="M8.5 4.5L19.5 15.5C21.2 17.2 21.2 19.8 19.5 21.5C17.8 23.2 15.2 23.2 13.5 21.5L2.5 10.5C.8 8.8.8 6.2 2.5 4.5C4.2 2.8 6.8 2.8 8.5 4.5Z"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                        />
+                                        <path
+                                            d="M7 15L15 7"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                            stroke-linecap="round"
+                                        />
+                                    </svg>
+                                    @break
                                 @default
                                     <svg width="27" height="27" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                                         <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/>
@@ -3948,8 +4071,121 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
 
-    function showAppointment(data) {
+    function getAppointmentDateValue(data) {
         if (!data) {
+            return '';
+        }
+
+        return data.tanggalreservasi
+            || data.tglreservasi
+            || data.tglkontrol
+            || data.tanggal_antrean
+            || data.tanggal
+            || data.date
+            || '';
+    }
+
+    function isTruthyValue(value) {
+        if (value === true || value === 1) {
+            return true;
+        }
+
+        if (value === false || value === 0 || value === null || value === undefined) {
+            return false;
+        }
+
+        return [
+            '1',
+            'true',
+            't',
+            'yes',
+            'y',
+            'sudah'
+        ].includes(String(value).trim().toLowerCase());
+    }
+
+    /*
+     * Tampilkan jadwal hari ini yang masih aktif dan jadwal berikutnya.
+     *
+     * Hari ini + sudah teregistrasi tetap tampil selama belum selesai.
+     */
+    function isUpcomingAppointment(data) {
+        if (!data) {
+            return false;
+        }
+
+        const dateValue = getAppointmentDateValue(data);
+
+        if (!dateValue) {
+            return false;
+        }
+
+        const target = new Date(
+            String(dateValue).substring(0, 10) + 'T00:00:00'
+        );
+
+        if (Number.isNaN(target.getTime())) {
+            return false;
+        }
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // Tanggal lampau tidak ditampilkan.
+        if (target.getTime() < today.getTime()) {
+            return false;
+        }
+
+        // Tanggal setelah hari ini selalu ditampilkan.
+        if (target.getTime() > today.getTime()) {
+            return true;
+        }
+
+        /*
+         * Hari ini tetap ditampilkan selama pelayanan belum benar-benar selesai.
+         * sudah_teregistrasi = true hanya berarti pasien sudah masuk PD,
+         * bukan berarti pasien sudah selesai dilayani.
+         */
+        if (data.tglclosing) {
+            return false;
+        }
+
+        if (
+            isTruthyValue(data.isasmed)
+            || isTruthyValue(data.iscppt_dokter)
+        ) {
+            return false;
+        }
+
+        if (Number(data.status_order_id || 0) === 6) {
+            return false;
+        }
+
+        const completedStatuses = [
+            'selesai',
+            'sudah closing',
+            'selesai dilayani',
+            'selesai pemeriksaan'
+        ];
+
+        const statusValues = [
+            data.status_pasien,
+            data.label_statusperiksa,
+            data.status_asli,
+            data.status
+        ];
+
+        const isCompleted = statusValues.some(function (value) {
+            return completedStatuses.includes(
+                String(value || '').trim().toLowerCase()
+            );
+        });
+
+        return !isCompleted;
+    }
+
+    function showAppointment(data) {
+        if (!isUpcomingAppointment(data)) {
             showEmpty();
             return;
         }
@@ -3987,12 +4223,7 @@ document.addEventListener('DOMContentLoaded', function () {
             || poli
             || 'RSUD Bali Mandara';
 
-        const dateValue = data.tanggalreservasi
-            || data.tglreservasi
-            || data.tglkontrol
-            || data.tanggal
-            || data.date
-            || '';
+        const dateValue = getAppointmentDateValue(data);
 
         const timeValue = data.jamreservasi
             || data.jam
@@ -4340,16 +4571,39 @@ document.addEventListener('DOMContentLoaded', function () {
                 throw new Error('Respons refresh kontrol bukan JSON.');
             }
 
-            if (!response.ok || !result || result.success !== true) {
+            const responseSuccess = Boolean(
+                response.ok
+                && result
+                && (
+                    result.success === true
+                    || Number(result?.metaData?.code) === 200
+                )
+            );
+
+            if (!responseSuccess) {
                 throw new Error(
-                    result && result.message
-                        ? result.message
-                        : 'Kontrol berikutnya gagal diperbarui.'
+                    result?.message
+                    || result?.metaData?.message
+                    || 'Kontrol berikutnya gagal diperbarui.'
                 );
             }
 
-            if (result.data) {
-                showAppointment(result.data);
+            /*
+             * Mendukung dua bentuk response:
+             *
+             * 1. Route internal:
+             *    { success: true, data: {...} }
+             *
+             * 2. Response API langsung:
+             *    { metaData: { code: 200 }, response: {...} }
+             */
+            const appointmentData =
+                result.data
+                || result.response
+                || null;
+
+            if (isUpcomingAppointment(appointmentData)) {
+                showAppointment(appointmentData);
             } else {
                 showEmpty();
             }

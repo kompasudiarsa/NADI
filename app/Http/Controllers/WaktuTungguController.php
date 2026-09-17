@@ -673,6 +673,12 @@ class WaktuTungguController extends Controller
             'noreservasi'
         ),
 
+         'antrianloket' => data_get(
+            $reservation,
+            'antrianloket'
+        ),
+
+
         /*
         |--------------------------------------------------------------------------
         | Jadwal

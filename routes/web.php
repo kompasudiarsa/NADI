@@ -9,6 +9,8 @@ use App\Http\Controllers\VideoEdukasiController;
 use App\Http\Controllers\WaktuTungguController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\SuratKontrolBPJSController;
+
+use App\Http\Controllers\AturanMinumObatController;
 /*
 |--------------------------------------------------------------------------
 | Halaman Awal / Login Pasien
@@ -16,6 +18,20 @@ use App\Http\Controllers\SuratKontrolBPJSController;
 */
 
 
+Route::prefix('aturan-minum-obat')
+    ->name('aturan-minum.')
+    ->group(function () {
+
+        Route::get(
+            '/',
+            [AturanMinumObatController::class, 'index']
+        )->name('index');
+
+        Route::get(
+            '/{noregistrasi}',
+            [AturanMinumObatController::class, 'show']
+        )->name('show');
+    });
 
 Route::get(
     '/cek-surat-kontrol',
