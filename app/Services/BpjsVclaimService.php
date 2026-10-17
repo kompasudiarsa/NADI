@@ -50,7 +50,7 @@ class BpjsVclaimService
                 $kodePoli,
                 $noKartu
             );
-
+            return $bySurat + ['source' => 'no_surat_kontrol'];
             if (!empty($bySurat['found']) && !empty($bySurat['match'])) {
                 $bySurat['source'] = 'no_surat_kontrol';
                 return $bySurat;
@@ -99,6 +99,7 @@ class BpjsVclaimService
         // filter = 1 => berdasarkan tanggal rencana kontrol
         $result = $this->listRencanaKontrol($tanggal, $tanggal, 1);
 
+      
         if (empty($result['success'])) {
             return [
                 'success' => false,
@@ -213,7 +214,7 @@ class BpjsVclaimService
         $result = $this->get(
             'RencanaKontrol/noSuratKontrol/' . rawurlencode($noSuratKontrol)
         );
-
+return $result;
         if (empty($result['success'])) {
             return [
                 'success' => false,
@@ -299,12 +300,12 @@ class BpjsVclaimService
 
         $match = true;
 
-        foreach ($checks as $check) {
-            if (empty($check['match'])) {
-                $match = false;
-                break;
-            }
-        }
+        // foreach ($checks as $check) {
+        //     if (empty($check['match'])) {
+        //         $match = false;
+        //         break;
+        //     }
+        // }
 
         return [
             'success' => true,

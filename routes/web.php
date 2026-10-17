@@ -154,3 +154,7 @@ Route::post(
     '/cek-waktu-tunggu/refresh',
     [WaktuTungguController::class, 'refresh']
 )->name('waktu-tunggu.refresh');
+Route::get(
+    'bpjs.rujukan.check',
+    [WaktuTungguController::class, 'cekRujukan']
+)->name('bpjs.rujukan.check');

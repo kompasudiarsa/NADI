@@ -50,16 +50,19 @@ class SuratKontrolBPJSController extends Controller
                     $kodePoli,
                     $noSuratKontrol
                 );
+             
             } elseif ($canCheckByLetter) {
                 $result = $bpjsVclaim->cekSuratKontrolByNomor(
                     $noSuratKontrol
                 );
             } else {
+
                 $result = $bpjsVclaim->cekSuratKontrolByNoKartu(
                     $noKartu,
                     $tanggalReservasi,
                     $kodePoli
                 );
+                
             }
 
             $data = is_array($result['data'] ?? null)
