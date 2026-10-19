@@ -97,7 +97,7 @@ class BpjsVclaimService
         }
 
         // filter = 1 => berdasarkan tanggal rencana kontrol
-        $result = $this->listRencanaKontrol($tanggal, $tanggal, 1);
+        $result = $this->listRencanaKontrol($tanggal, $tanggal, 2);
 
       
         if (empty($result['success'])) {
@@ -214,7 +214,7 @@ class BpjsVclaimService
         $result = $this->get(
             'RencanaKontrol/noSuratKontrol/' . rawurlencode($noSuratKontrol)
         );
-return $result;
+
         if (empty($result['success'])) {
             return [
                 'success' => false,
@@ -319,7 +319,7 @@ return $result;
         ];
     }
 
-    public function listRencanaKontrol($tglAwal, $tglAkhir, $filter = 1)
+    public function listRencanaKontrol($tglAwal, $tglAkhir, $filter = 2)
     {
         $tglAwal = $this->normalizeDate($tglAwal);
         $tglAkhir = $this->normalizeDate($tglAkhir);

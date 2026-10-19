@@ -62,9 +62,10 @@ class SuratKontrolBPJSController extends Controller
                     $tanggalReservasi,
                     $kodePoli
                 );
-                
+                 
             }
 
+           
             $data = is_array($result['data'] ?? null)
                 ? $result['data']
                 : [];
