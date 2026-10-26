@@ -9,7 +9,8 @@ use App\Http\Controllers\VideoEdukasiController;
 use App\Http\Controllers\WaktuTungguController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\SuratKontrolBPJSController;
-
+use App\Http\Controllers\NadiReviewController;
+use App\Http\Controllers\Admin\NadiReviewAdminController;
 use App\Http\Controllers\AturanMinumObatController;
 /*
 |--------------------------------------------------------------------------
@@ -17,6 +18,19 @@ use App\Http\Controllers\AturanMinumObatController;
 |--------------------------------------------------------------------------
 */
 
+// Gabungkan baris-baris ini ke routes/web.php yang sudah ada; jangan mengganti seluruh file.
+Route::prefix('nadi/ulasan')->name('nadi.reviews.')->group(function () {
+    Route::get('/', [NadiReviewController::class, 'index'])->name('index');
+    Route::post('/', [NadiReviewController::class, 'store'])->middleware('throttle:5,1')->name('store');
+    Route::delete('/{review}', [NadiReviewController::class, 'destroy'])->name('destroy');
+});
+
+// PENTING: lindungi route admin dengan middleware admin yang benar-benar dipakai proyek NADI.
+// Contoh ini memakai auth standar Laravel; ganti 'auth' jika NADI memakai middleware admin khusus.
+Route::middleware(['auth'])->prefix('admin/nadi-ulasan')->name('admin.nadi-reviews.')->group(function () {
+    Route::get('/', [NadiReviewAdminController::class, 'index'])->name('index');
+    Route::patch('/{review}', [NadiReviewAdminController::class, 'update'])->name('update');
+});
 
 Route::prefix('aturan-minum-obat')
     ->name('aturan-minum.')

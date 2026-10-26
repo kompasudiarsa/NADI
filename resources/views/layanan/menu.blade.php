@@ -109,6 +109,13 @@
             'url' => $routeOrUrl('aturan-minum.index','/aturan-minum-obat'),
             'class' => 'is-green',
         ],
+         [
+            'title' => 'Ulasan Pelayanan',
+            'description' => 'Baca ulasan dan sampaikan pengalaman pelayanan RSUD Bali Mandara.',
+            'icon' => 'smile',
+            'url' => route('nadi.reviews.index'),
+           'class' => 'is-blue',
+        ],
     ];
 
     /*
@@ -2412,6 +2419,105 @@
             display: none;
         }
     }
+
+/* Modal ajakan ulasan pasien */
+.nadi-review-overlay{position:fixed;inset:0;z-index:2147483000;background:rgba(8,26,64,.62);display:none;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(5px)}
+.nadi-review-overlay.is-open{display:flex}
+#nadi-review-overlay [hidden]{display:none!important}
+.nadi-review-dialog{position:relative;width:min(100%,430px);max-height:90dvh;overflow-y:auto;border-radius:24px;background:#fff;padding:25px 22px;box-shadow:0 25px 80px rgba(0,0,0,.23);text-align:center;color:#163a93}
+.nadi-review-illustration{width:62px;height:62px;margin:0 auto 12px;display:grid;place-items:center;background:linear-gradient(130deg,#e7f4ff,#e6ffef);border-radius:20px;font-size:29px}
+.nadi-review-dialog h2{font-size:20px;font-weight:900;margin:0 0 8px}
+.nadi-review-dialog p{font-size:13px;color:#64748b;line-height:1.6;margin:0 0 15px}
+.nadi-review-stars{display:flex;justify-content:center;gap:5px;margin:10px 0 15px}
+.nadi-review-stars button{background:transparent;border:0;color:#cbd5e1;font-size:34px;cursor:pointer;padding:1px 4px;line-height:1}
+.nadi-review-stars button.is-active{color:#f6b80f}
+.nadi-review-label{display:block;margin:10px 0 5px;font-size:12px;color:#334155;text-align:left;font-weight:800}
+.nadi-review-input{width:100%;border:1px solid #d6e2ef;border-radius:12px;padding:11px;font:inherit;font-size:13px;background:#fff;color:#1e293b}
+.nadi-review-actions{display:flex;gap:9px;margin-top:18px}
+.nadi-review-actions button,.nadi-review-actions a{flex:1;display:flex;align-items:center;justify-content:center;min-height:42px;padding:10px;border:0;border-radius:12px;font-size:12px;font-weight:850;text-decoration:none;cursor:pointer}
+.nadi-review-primary{background:linear-gradient(110deg,#1477ee,#163a93);color:#fff!important}
+.nadi-review-secondary{background:#edf2f7;color:#475569!important}
+.nadi-review-x{position:absolute;right:14px;top:12px;border:0;background:#f1f5f9;color:#475569;border-radius:9px;width:34px;height:34px;display:grid;place-items:center;cursor:pointer;font-size:21px;font-weight:700;z-index:2}.nadi-review-x:hover{background:#e2e8f0}
+.nadi-review-hint{margin-top:11px;font-size:11px;color:#64748b}
+body.nadi-review-lock{overflow:hidden}
+
+    /* Informasi Tambahan: perbaikan judul terpotong dan tombol bertabrakan */
+    .nadi-appointment-secondary > .nadi-info-line {
+        min-width: 0;
+        align-items: flex-start;
+    }
+    .nadi-appointment-secondary .nadi-bpjs-info-content,
+    .nadi-appointment-secondary .nadi-booking-info-content,
+    .nadi-appointment-secondary .nadi-pharmacy-content {
+        min-width: 0;
+        flex: 1 1 auto;
+        width: 100%;
+    }
+    .nadi-appointment-secondary .nadi-bpjs-info-head,
+    .nadi-appointment-secondary .nadi-booking-info-head {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: flex-start;
+        gap: 9px;
+    }
+    .nadi-appointment-secondary .nadi-bpjs-info-label,
+    .nadi-appointment-secondary .nadi-booking-info-title,
+    .nadi-appointment-secondary .nadi-info-primary {
+        display: block;
+        width: 100%;
+        min-width: 0;
+        overflow-wrap: normal;
+        word-break: normal;
+        white-space: normal;
+        line-height: 1.4;
+        font-weight: 850;
+    }
+    .nadi-appointment-secondary .nadi-bpjs-info-value,
+    .nadi-appointment-secondary .nadi-booking-info-value {
+        display: block;
+        max-width: 100%;
+        margin-top: 9px;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+        line-height: 1.5;
+    }
+    .nadi-appointment-secondary .nadi-bpjs-check-button,
+    .nadi-appointment-secondary .nadi-detail-button {
+        width: auto;
+        max-width: 100%;
+        flex: 0 0 auto;
+        min-height: 33px;
+        padding: 7px 10px;
+        white-space: normal;
+        text-align: center;
+        line-height: 1.25;
+    }
+    @media (min-width: 1024px) {
+        .nadi-appointment-secondary {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+        .nadi-appointment-secondary > .nadi-info-line {
+            padding: 14px;
+            gap: 11px;
+        }
+        .nadi-appointment-secondary .nadi-info-primary {
+            font-size: 12px;
+        }
+    }
+    @media (min-width: 1024px) and (max-width: 1279px) {
+        .nadi-appointment-secondary {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+    @media (max-width: 767px) {
+        .nadi-appointment-secondary > .nadi-info-line {
+            padding: 12px;
+            border: 1px solid #e5edf5;
+            border-radius: 13px;
+            background: #fbfdff;
+        }
+    }
 </style>
 
 <section class="nadi-page">
@@ -2665,7 +2771,31 @@
                                 </div>
                             </div>
                         </div>
-
+                        {{-- Nomor rujukan ditampilkan hanya jika datanya memang tersedia. --}}
+                        @php
+                            $appointmentReferralNumber = data_get($appointment, 'norujukan')
+                                ?: data_get($appointment, 'noRujukan')
+                                ?: data_get($appointment, 'nomorrujukan')
+                                ?: data_get($patient, 'reservation_raw.norujukan');
+                        @endphp
+                        @if($appointmentReferralNumber)
+                        <div class="nadi-info-line nadi-bpjs-info-line is-referral">
+                            <div class="nadi-info-icon nadi-bpjs-info-icon" aria-hidden="true">
+                                <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+                                    <path d="M7 3.5h8l4 4V20H7a2 2 0 0 1-2-2V5.5a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+                                    <path d="M15 4v4h4M8.5 12h7M8.5 16h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                </svg>
+                            </div>
+                            <div class="nadi-bpjs-info-content">
+                                <div class="nadi-bpjs-info-head">
+                                    <div class="nadi-info-primary nadi-bpjs-info-label">Nomor Rujukan BPJS</div>
+                                </div>
+                                <div class="nadi-info-secondary nadi-bpjs-info-value" title="{{ $appointmentReferralNumber }}">
+                                    {{ $appointmentReferralNumber }}
+                                </div>
+                            </div>
+                        </div>
+                        @endif
                         {{-- Informasi Resep / Farmasi --}}
                         <div
                             id="kontrol-farmasi"
@@ -5193,4 +5323,164 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 
+
+{{-- Prompt ulasan: saat masuk dan sebelum logout --}}
+<div id="nadi-review-overlay" class="nadi-review-overlay" role="presentation" aria-hidden="true">
+ <div class="nadi-review-dialog" role="dialog" aria-modal="true" aria-labelledby="nadi-review-title">
+  <button type="button" id="nadi-review-close" class="nadi-review-x" aria-label="Tutup modal" title="Tutup">&times;</button>
+  <div class="nadi-review-illustration" aria-hidden="true">💬</div>
+  <h2 id="nadi-review-title">Bagaimana pelayanan kami?</h2>
+  <p id="nadi-review-description">Bantu kami meningkatkan pelayanan melalui ulasan Anda.</p>
+
+  <div id="nadi-review-choice" class="nadi-review-actions">
+   <button type="button" id="nadi-review-skip" class="nadi-review-secondary">Lewati</button>
+   <button type="button" id="nadi-review-give" class="nadi-review-primary">Beri Ulasan</button>
+  </div>
+
+  <div id="nadi-review-editor" hidden>
+   @if(Route::has('nadi.reviews.store'))
+    <form id="nadi-review-form" action="{{ route('nadi.reviews.store') }}" method="POST">
+     @csrf
+     <div class="nadi-review-stars" role="group" aria-label="Penilaian bintang">
+      @for($i=1;$i<=5;$i++)
+       <button type="button" data-rating="{{ $i }}" aria-label="{{ $i }} bintang">★</button>
+      @endfor
+     </div>
+     <input type="hidden" id="nadi-review-rating" name="rating" required>
+     <label class="nadi-review-label" for="nadi-review-category">Layanan yang dinilai</label>
+     <select id="nadi-review-category" class="nadi-review-input" name="kategori" required>
+      <option value="">Pilih layanan</option>
+      <option>Pendaftaran</option><option>Rawat Jalan</option><option>IGD</option><option>Rawat Inap</option>
+      <option>Laboratorium</option><option>Radiologi</option><option>Farmasi</option>
+      <option>Fasilitas dan Kebersihan</option><option>Lainnya</option>
+     </select>
+     <label class="nadi-review-label" for="nadi-review-comment">Ceritakan pengalaman Anda</label>
+     <textarea id="nadi-review-comment" class="nadi-review-input" name="ulasan" rows="3" maxlength="1500" required placeholder="Tuliskan pengalaman pelayanan Anda..."></textarea>
+     <div id="nadi-review-error" role="alert" style="display:none;color:#b91c1c;font-size:12px;margin-top:10px;"></div>
+     <div class="nadi-review-actions">
+      <button type="button" class="nadi-review-secondary" id="nadi-review-back">Kembali</button>
+      <button type="submit" class="nadi-review-primary" id="nadi-review-submit">Kirim Ulasan</button>
+     </div>
+    </form>
+   @else
+    <p>Pengisian ulasan tersedia melalui halaman Ulasan Pelayanan.</p>
+    <div class="nadi-review-actions">
+     <button type="button" class="nadi-review-secondary" id="nadi-review-back">Kembali</button>
+     <a class="nadi-review-primary" href="{{ route('nadi.reviews.index') }}">Buka Ulasan</a>
+    </div>
+   @endif
+  </div>
+ </div>
+</div>
+<script>
+(function () {
+ 'use strict';
+ const overlay = document.getElementById('nadi-review-overlay');
+ const logoutForm = document.querySelector('form.nadi-logout-form');
+ const reviewForm = document.getElementById('nadi-review-form');
+ const choice = document.getElementById('nadi-review-choice');
+ const editor = document.getElementById('nadi-review-editor');
+ const description = document.getElementById('nadi-review-description');
+ const skip = document.getElementById('nadi-review-skip');
+ const give = document.getElementById('nadi-review-give');
+ const back = document.getElementById('nadi-review-back');
+ const closeX = document.getElementById('nadi-review-close');
+ const error = document.getElementById('nadi-review-error');
+ const submit = document.getElementById('nadi-review-submit');
+ let mode = 'entry';
+ let processing = false;
+ let logoutConfirmed = false;
+ function performLogout() {
+  if (!logoutForm || processing) return;
+  logoutConfirmed = true;
+  logoutForm.submit();
+ }
+ function show(nextMode) {
+  mode = nextMode;
+  choice.hidden = false;
+  editor.hidden = true;
+  if (error) error.style.display = 'none';
+  description.textContent = mode === 'logout'
+    ? 'Sebelum keluar, silakan beri ulasan pelayanan atau langsung logout.'
+    : 'Bantu kami meningkatkan pelayanan melalui ulasan Anda.';
+  skip.textContent = mode === 'logout' ? 'Lewati & Logout' : 'Lewati';
+  give.textContent = mode === 'logout' ? 'Beri Ulasan & Logout' : 'Beri Ulasan';
+  overlay.classList.add('is-open');
+  overlay.setAttribute('aria-hidden', 'false');
+  document.body.classList.add('nadi-review-lock');
+  skip.focus();
+ }
+ function hide() {
+  overlay.classList.remove('is-open');
+  overlay.setAttribute('aria-hidden', 'true');
+  document.body.classList.remove('nadi-review-lock');
+ }
+ // Tampilkan setiap kali halaman menu diakses, termasuk setelah login baru.
+ // Tidak memakai sessionStorage yang bisa membuat popup tertahan pada login berikutnya.
+ function initEntryPopup() {
+  if (overlay.dataset.entryShown === '1') return;
+  overlay.dataset.entryShown = '1';
+  show('entry');
+ }
+ if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initEntryPopup, { once: true });
+ } else {
+  initEntryPopup();
+ }
+ // Saat halaman dipulihkan dari back-forward cache.
+ window.addEventListener('pageshow', function (event) {
+  if (event.persisted) { overlay.dataset.entryShown = '0'; initEntryPopup(); }
+ });
+ skip.addEventListener('click', function () { if (mode === 'logout') performLogout(); else hide(); });
+ // X selalu menutup popup saja; pada mode logout berarti membatalkan logout.
+ if (closeX) closeX.addEventListener('click', hide);
+ document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape' && overlay.classList.contains('is-open') && !processing) hide();
+ });
+ give.addEventListener('click', function () {
+  choice.hidden = true;
+  editor.hidden = false;
+  description.textContent = mode === 'logout'
+   ? 'Isi dan kirim ulasan terlebih dahulu. Setelah berhasil, Anda akan logout otomatis.'
+   : 'Berikan penilaian untuk pelayanan yang Anda terima.';
+ });
+ if (back) back.addEventListener('click', function () { choice.hidden = false; editor.hidden = true; });
+ if (logoutForm) logoutForm.addEventListener('submit', function (e) {
+  if (logoutConfirmed) return;
+  e.preventDefault(); show('logout');
+ });
+ if (reviewForm) {
+  const ratingInput = document.getElementById('nadi-review-rating');
+  const stars = Array.from(overlay.querySelectorAll('[data-rating]'));
+  stars.forEach(star => star.addEventListener('click', function () {
+   const n = Number(star.dataset.rating); ratingInput.value = String(n);
+   stars.forEach(s => s.classList.toggle('is-active', Number(s.dataset.rating) <= n));
+  }));
+  reviewForm.addEventListener('submit', async function (e) {
+   if (!ratingInput.value) { e.preventDefault(); alert('Silakan pilih penilaian bintang.'); return; }
+   if (mode !== 'logout') return; // Alur biasa: mengikuti controller ulasan yang sudah ada.
+   e.preventDefault();
+   if (processing) return;
+   processing = true; submit.disabled = true;
+   if (error) error.style.display = 'none';
+   try {
+    const res = await fetch(reviewForm.action, {
+     method: 'POST', body: new FormData(reviewForm), credentials: 'same-origin',
+     headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    if (!res.ok) {
+     const data = await res.json().catch(() => ({}));
+     const message = data.message || (data.errors ? Object.values(data.errors).flat().join(' ') : 'Ulasan gagal disimpan.');
+     throw new Error(message);
+    }
+    // Logout hanya dilakukan setelah server berhasil menyimpan ulasan.
+    processing = false;
+    performLogout();
+   } catch (err) {
+    if (error) { error.textContent = err.message || 'Terjadi gangguan saat mengirim ulasan.'; error.style.display = 'block'; }
+   } finally { processing = false; submit.disabled = false; }
+  });
+ }
+})();
+</script>
 @endsection
