@@ -2439,7 +2439,7 @@
 .nadi-review-secondary{background:#edf2f7;color:#475569!important}
 .nadi-review-x{position:absolute;right:14px;top:12px;border:0;background:#f1f5f9;color:#475569;border-radius:9px;width:34px;height:34px;display:grid;place-items:center;cursor:pointer;font-size:21px;font-weight:700;z-index:2}.nadi-review-x:hover{background:#e2e8f0}
 .nadi-review-hint{margin-top:11px;font-size:11px;color:#64748b}
-body.nadi-review-lock{overflow:hidden}
+.nadi-review-dialog .nadi-review-input:focus{outline:2px solid #1477ee;outline-offset:1px}.nadi-review-dialog textarea{resize:vertical;min-height:98px}.nadi-review-dialog select{appearance:auto}body.nadi-review-lock{overflow:hidden}
 
     /* Informasi Tambahan: perbaikan judul terpotong dan tombol bertabrakan */
     .nadi-appointment-secondary > .nadi-info-line {
@@ -5347,15 +5347,18 @@ document.addEventListener('DOMContentLoaded', function () {
       @endfor
      </div>
      <input type="hidden" id="nadi-review-rating" name="rating" required>
-     <label class="nadi-review-label" for="nadi-review-category">Layanan yang dinilai</label>
-     <select id="nadi-review-category" class="nadi-review-input" name="kategori" required>
-      <option value="">Pilih layanan</option>
-      <option>Pendaftaran</option><option>Rawat Jalan</option><option>IGD</option><option>Rawat Inap</option>
-      <option>Laboratorium</option><option>Radiologi</option><option>Farmasi</option>
-      <option>Fasilitas dan Kebersihan</option><option>Lainnya</option>
+     {{-- Selaraskan field dengan formulir Ulasan Pelayanan --}}
+     <input type="hidden" name="service_type" value="rumah_sakit">
+     <input type="hidden" name="service_name" value="">
+     <label class="nadi-review-label" for="nadi-review-category">Fokus kategori ulasan <span style="color:#dc2626">*</span></label>
+     <select id="nadi-review-category" class="nadi-review-input" name="focus_category" required
+       data-source="{{ route('nadi.reviews.index') }}">
+      <option value="">Memuat fokus kategori...</option>
      </select>
-     <label class="nadi-review-label" for="nadi-review-comment">Ceritakan pengalaman Anda</label>
-     <textarea id="nadi-review-comment" class="nadi-review-input" name="ulasan" rows="3" maxlength="1500" required placeholder="Tuliskan pengalaman pelayanan Anda..."></textarea>
+     <p id="nadi-review-category-hint" class="nadi-review-hint" style="text-align:left;margin:5px 0 10px">Pilih topik utama sesuai pengalaman pelayanan Anda.</p>
+     <label class="nadi-review-label" for="nadi-review-comment">Pengalaman Anda <span style="color:#dc2626">*</span></label>
+     <textarea id="nadi-review-comment" class="nadi-review-input" name="review" rows="4" minlength="8" maxlength="2000" required placeholder="Ceritakan pengalaman pelayanan Anda..."></textarea>
+     <p class="nadi-review-hint" style="text-align:left">Jangan tuliskan nomor RM, nomor BPJS, alamat, atau informasi medis pribadi.</p>
      <div id="nadi-review-error" role="alert" style="display:none;color:#b91c1c;font-size:12px;margin-top:10px;"></div>
      <div class="nadi-review-actions">
       <button type="button" class="nadi-review-secondary" id="nadi-review-back">Kembali</button>
@@ -5437,12 +5440,48 @@ document.addEventListener('DOMContentLoaded', function () {
  document.addEventListener('keydown', function (e) {
   if (e.key === 'Escape' && overlay.classList.contains('is-open') && !processing) hide();
  });
+ const focusSelect = document.getElementById('nadi-review-category');
+ const focusHint = document.getElementById('nadi-review-category-hint');
+ let focusReady = false;
+ async function loadFocusCategories() {
+  if (!focusSelect || focusReady) return true;
+  focusSelect.disabled = true;
+  try {
+   // Ambil daftar pilihan resmi dari formulir Ulasan Pelayanan.
+   const response = await fetch(focusSelect.dataset.source, {
+    credentials: 'same-origin', headers: {'Accept': 'text/html'}
+   });
+   if (!response.ok) throw new Error('Gagal memuat kategori.');
+   const html = await response.text();
+   const source = new DOMParser().parseFromString(html, 'text/html')
+     .querySelector('select[name="focus_category"]');
+   if (!source) throw new Error('Pilihan fokus kategori tidak ditemukan.');
+   const options = Array.from(source.querySelectorAll('option')).filter(opt => opt.value !== '');
+   if (!options.length) throw new Error('Kategori ulasan belum tersedia.');
+   focusSelect.replaceChildren(new Option('-- Pilih fokus ulasan --', ''));
+   options.forEach(opt => focusSelect.add(new Option(opt.textContent.trim(), opt.value)));
+   focusReady = true;
+   if (focusHint) focusHint.textContent = 'Pilih topik utama yang sesuai dengan pengalaman Anda.';
+   return true;
+  } catch (err) {
+   focusSelect.replaceChildren(new Option('Kategori belum dapat dimuat', ''));
+   if (focusHint) {
+    focusHint.replaceChildren(document.createTextNode('Kategori belum tersedia di pop-up. '));
+    const link = document.createElement('a');
+    link.href = focusSelect.dataset.source;
+    link.textContent = 'Isi di halaman Ulasan Pelayanan';
+    focusHint.appendChild(link);
+   }
+   return false;
+  } finally { focusSelect.disabled = false; }
+ }
  give.addEventListener('click', function () {
   choice.hidden = true;
   editor.hidden = false;
   description.textContent = mode === 'logout'
    ? 'Isi dan kirim ulasan terlebih dahulu. Setelah berhasil, Anda akan logout otomatis.'
    : 'Berikan penilaian untuk pelayanan yang Anda terima.';
+  loadFocusCategories();
  });
  if (back) back.addEventListener('click', function () { choice.hidden = false; editor.hidden = true; });
  if (logoutForm) logoutForm.addEventListener('submit', function (e) {
@@ -5458,7 +5497,9 @@ document.addEventListener('DOMContentLoaded', function () {
   }));
   reviewForm.addEventListener('submit', async function (e) {
    if (!ratingInput.value) { e.preventDefault(); alert('Silakan pilih penilaian bintang.'); return; }
-   if (mode !== 'logout') return; // Alur biasa: mengikuti controller ulasan yang sudah ada.
+   if (!focusReady || !focusSelect.value) { e.preventDefault(); alert('Silakan pilih fokus kategori ulasan.'); return; }
+   // Masuk menu biasa tetap menggunakan POST controller Laravel yang sudah ada.
+   if (mode !== 'logout') return;
    e.preventDefault();
    if (processing) return;
    processing = true; submit.disabled = true;
