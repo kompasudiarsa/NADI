@@ -73,4 +73,7 @@ return [
 
     'timeout' => env('BPJS_TIMEOUT_SECONDS', 15),
 ],
+'lis_pdf' => [
+    'mount' => env('LIS_PDF_MOUNT', '/mnt/lab-backup'),
+],
 ];
