@@ -768,6 +768,43 @@
         $appointmentCanCheckByLetter
         || $appointmentCanCheckByCard;
 
+    /*
+     * Masa berlaku rujukan: gunakan hasil API, bukan hitung ulang di Blade.
+     * Fallback hanya untuk reservation_raw yang memang memiliki field yang sama.
+     */
+    // Ambil field langsung dari appointment dan beberapa sumber fallback yang mungkin
+    // sudah disediakan oleh controller. Jangan menebak tanggal kedaluwarsa di Blade.
+    $referralSources = [
+        $appointment,
+        $nextAppointment ?? null,
+        data_get($patient, 'next_appointment'),
+        data_get($patient, 'reservation_raw'),
+    ];
+    $referralField = static function ($field) use ($referralSources) {
+        foreach ($referralSources as $source) {
+            foreach ([$field, 'rujukan.' . $field] as $path) {
+                $value = data_get($source, $path);
+                if ($value !== null && $value !== '') return $value;
+            }
+        }
+        return null;
+    };
+    $referralVisitDate = $referralField('tanggal_kunjungan_rujukan');
+    $referralExpiryDate = $referralField('tanggal_akhir_rujukan');
+    $referralRemainingDays = $referralField('sisa_hari_rujukan');
+    $referralStatus = strtoupper(trim((string) ($referralField('status_rujukan') ?: '')));
+    $referralReservationStatus = strtoupper(trim((string) ($referralField('status_rujukan_saat_reservasi') ?: '')));
+    $referralMessage = $referralField('pesan_rujukan');
+    $referralHasInfo = $referralVisitDate || $referralExpiryDate || $referralStatus || $referralMessage;
+    $formatReferralDate = static function ($date) {
+        if (!$date) return '-';
+        try {
+            return \Carbon\Carbon::parse($date)->locale('id')->translatedFormat('d F Y');
+        } catch (\Throwable $e) {
+            return (string) $date;
+        }
+    };
+
     $appointmentBpjsCheckUrl = null;
 
     /*
@@ -1181,6 +1218,30 @@
             font-size: 7.7px;
         }
     }
+
+    /* Masa berlaku rujukan dari API SIMRS/BPJS */
+    .nadi-referral-validity {margin-top:10px;padding:11px 12px;border:1px solid #dce9f7;border-radius:13px;background:#f8fbff;}
+
+    /* Masa berlaku menyatu dengan kartu nomor rujukan */
+    .nadi-appointment-secondary > .nadi-info-line.is-referral { min-width:0; }
+    .nadi-referral-inline { margin-top:7px; padding:9px 0 0; border:0; border-top:1px solid #e4edf8; border-radius:0; background:transparent; }
+    .nadi-referral-inline .nadi-referral-validity-header { margin-bottom:6px; }
+    .nadi-referral-inline .nadi-referral-validity-grid { gap:6px; }
+    .nadi-referral-check-button { margin-top:8px; min-height:30px; width:auto; }
+    .nadi-referral-check-button:disabled { opacity:.5; cursor:not-allowed; }
+
+    .nadi-referral-validity-header {display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px;}
+    .nadi-referral-validity-title {font-size:11px;font-weight:900;color:#163a93;}
+    .nadi-referral-status {padding:4px 8px;border-radius:999px;font-size:9px;font-weight:850;background:#eaf2ff;color:#315fba;}
+    .nadi-referral-status.is-active {background:#eafaf1;color:#118148;}
+    .nadi-referral-status.is-expired {background:#fff0f0;color:#ba3434;}
+    .nadi-referral-validity-grid {display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+    .nadi-referral-date-item {min-width:0;}
+    .nadi-referral-date-label {font-size:9px;color:#687b94;font-weight:700;}
+    .nadi-referral-date-value {font-size:11px;color:#173c78;font-weight:850;margin-top:3px;}
+    .nadi-referral-validity-footer {margin-top:8px;font-size:10px;font-weight:750;color:#47708b;}
+    .nadi-referral-validity-note {margin-top:5px;font-size:9px;color:#687b94;line-height:1.4;}
+    @media(max-width:350px){.nadi-referral-validity-grid{grid-template-columns:1fr;}}
 
     /* Informasi Farmasi */
     .nadi-pharmacy-info-line {
@@ -1809,7 +1870,7 @@
         bottom: 0;
         display: grid;
         width: min(100%, 520px);
-        grid-template-columns: repeat(5, 1fr);
+        grid-template-columns: repeat(4, 1fr);
         transform: translateX(-50%);
         border-top: 1px solid #e6edf5;
         background: rgba(255, 255, 255, .98);
@@ -2320,7 +2381,7 @@
             display: grid !important;
             width: 100% !important;
             max-width: none !important;
-            grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+            grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
             transform: none !important;
             border-top: 1px solid #e1e9f2 !important;
             background: rgba(255, 255, 255, .97) !important;
@@ -2385,7 +2446,7 @@
             display: grid !important;
             width: 100% !important;
             max-width: none !important;
-            grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+            grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
             transform: none !important;
             padding-bottom: max(6px, env(safe-area-inset-bottom)) !important;
             background: rgba(255, 255, 255, .98) !important;
@@ -2771,15 +2832,16 @@
                                 </div>
                             </div>
                         </div>
-                        {{-- Nomor rujukan ditampilkan hanya jika datanya memang tersedia. --}}
+                        {{-- Rujukan BPJS: nomor dan masa berlaku dalam SATU kartu --}}
                         @php
                             $appointmentReferralNumber = data_get($appointment, 'norujukan')
                                 ?: data_get($appointment, 'noRujukan')
                                 ?: data_get($appointment, 'nomorrujukan')
                                 ?: data_get($patient, 'reservation_raw.norujukan');
                         @endphp
-                        @if($appointmentReferralNumber)
-                        <div class="nadi-info-line nadi-bpjs-info-line is-referral">
+                        <div id="kontrol-rujukan-card"
+                             class="nadi-info-line nadi-bpjs-info-line is-referral"
+                             @if(!$appointmentReferralNumber && !$referralHasInfo) style="display:none;" @endif>
                             <div class="nadi-info-icon nadi-bpjs-info-icon" aria-hidden="true">
                                 <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
                                     <path d="M7 3.5h8l4 4V20H7a2 2 0 0 1-2-2V5.5a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
@@ -2787,15 +2849,46 @@
                                 </svg>
                             </div>
                             <div class="nadi-bpjs-info-content">
-                                <div class="nadi-bpjs-info-head">
-                                    <div class="nadi-info-primary nadi-bpjs-info-label">Nomor Rujukan BPJS</div>
+                                <div class="nadi-info-primary nadi-bpjs-info-label">Nomor Rujukan BPJS</div>
+                                <div id="kontrol-rujukan-nomor" class="nadi-info-secondary nadi-bpjs-info-value">
+                                    {{ $appointmentReferralNumber ?: '-' }}
                                 </div>
-                                <div class="nadi-info-secondary nadi-bpjs-info-value" title="{{ $appointmentReferralNumber }}">
-                                    {{ $appointmentReferralNumber }}
+                                <div id="kontrol-rujukan-masa" class="nadi-referral-validity nadi-referral-inline">
+                                    <div class="nadi-referral-validity-header">
+                                        <span class="nadi-referral-validity-title">Masa berlaku rujukan</span>
+                                        <span id="kontrol-rujukan-status"
+                                              class="nadi-referral-status {{ $referralStatus === 'AKTIF' ? 'is-active' : ($referralStatus === 'KEDALUWARSA' ? 'is-expired' : '') }}">
+                                            {{ $referralStatus ? str_replace('_', ' ', $referralStatus) : 'Belum dicek' }}
+                                        </span>
+                                    </div>
+                                    <div class="nadi-referral-validity-grid">
+                                        <div class="nadi-referral-date-item">
+                                            <div class="nadi-referral-date-label">Tanggal kunjungan</div>
+                                            <div id="kontrol-rujukan-kunjungan" class="nadi-referral-date-value">{{ $formatReferralDate($referralVisitDate) }}</div>
+                                        </div>
+                                        <div class="nadi-referral-date-item">
+                                            <div class="nadi-referral-date-label">Berlaku sampai</div>
+                                            <div id="kontrol-rujukan-akhir" class="nadi-referral-date-value">{{ $formatReferralDate($referralExpiryDate) }}</div>
+                                        </div>
+                                    </div>
+                                    <div id="kontrol-rujukan-sisa" class="nadi-referral-validity-footer">
+                                        @if($referralRemainingDays !== null && $referralRemainingDays !== '')
+                                            {{ (int)$referralRemainingDays > 0 ? 'Sisa '.(int)$referralRemainingDays.' hari' : ((int)$referralRemainingDays === 0 ? 'Hari terakhir masa berlaku' : 'Masa berlaku sudah berakhir') }}
+                                        @endif
+                                    </div>
+                                    <div id="kontrol-rujukan-saat-reservasi" class="nadi-referral-validity-note">
+                                        {{ $referralReservationStatus ? 'Saat tanggal reservasi: '.str_replace('_', ' ', $referralReservationStatus) : '' }}
+                                    </div>
+                                    <div id="kontrol-rujukan-pesan" class="nadi-referral-validity-note">{{ $referralMessage ?: '' }}</div>
+                                    <button id="kontrol-rujukan-check" type="button"
+                                            class="nadi-bpjs-check-button nadi-referral-check-button"
+                                            data-url="{{ route('bpjs.rujukan.check') }}"
+                                            @if(!$appointmentBpjsCard) disabled @endif>
+                                        Cek Rujukan
+                                    </button>
                                 </div>
                             </div>
                         </div>
-                        @endif
                         {{-- Informasi Resep / Farmasi --}}
                         <div
                             id="kontrol-farmasi"
@@ -2872,7 +2965,7 @@
                             <div class="nadi-booking-info-content">
                                 <div class="nadi-booking-info-head">
                                     <div class="nadi-info-primary nadi-booking-info-title">
-                                        Kode Booking / No. Reservasi
+                                        No. Reservasi
                                     </div>
 
                                     <button
@@ -3313,7 +3406,9 @@
                 <span>Riwayat</span>
             </a>
 
-            <a href="{{ $routeOrUrl('bantuan.index', '/bantuan') }}" class="nadi-bottom-link">
+            {{-- Chat CS disembunyikan sementara. Ubah false menjadi true untuk mengaktifkan kembali. --}}
+            @if(false)
+            <a href="{{ $routeOrUrl('nadi.bantuan.index', '/nadi/bantuan') }}" class="nadi-bottom-link" id="nadi-menu-help" aria-label="Buka bantuan chat CS">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
                     <path d="M4 13V11C4 6.6 7.6 3 12 3C16.4 3 20 6.6 20 11V13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                     <rect x="2.5" y="11.5" width="4" height="7" rx="2" fill="currentColor"/>
@@ -3321,6 +3416,7 @@
                 </svg>
                 <span>Bantuan</span>
             </a>
+            @endif
 
             <a href="{{ $routeOrUrl('profile.index', '/profil') }}" class="nadi-bottom-link">
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
@@ -4072,6 +4168,14 @@ document.addEventListener('DOMContentLoaded', function () {
     const fotoDokterEl = document.getElementById('kontrol-foto-dokter');
     const fotoFallbackEl = document.getElementById('kontrol-foto-fallback');
 
+    const referralValidityEl = document.getElementById('kontrol-rujukan-masa');
+    const referralStatusEl = document.getElementById('kontrol-rujukan-status');
+    const referralVisitEl = document.getElementById('kontrol-rujukan-kunjungan');
+    const referralExpiryEl = document.getElementById('kontrol-rujukan-akhir');
+    const referralRemainingEl = document.getElementById('kontrol-rujukan-sisa');
+    const referralAtReservationEl = document.getElementById('kontrol-rujukan-saat-reservasi');
+    const referralMessageEl = document.getElementById('kontrol-rujukan-pesan');
+
     const bpjsControlEl = document.getElementById('kontrol-bpjs-control');
     const bpjsLabelEl = document.getElementById('kontrol-bpjs-label');
     const bpjsValueEl = document.getElementById('kontrol-bpjs-value');
@@ -4314,6 +4418,46 @@ document.addEventListener('DOMContentLoaded', function () {
         return !isCompleted;
     }
 
+    function formatReferralDate(value) {
+        if (!value) return '-';
+        const date = new Date(String(value).substring(0, 10) + 'T00:00:00');
+        if (Number.isNaN(date.getTime())) return String(value);
+        return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+    }
+
+    function updateReferralValidity(data) {
+        if (!referralValidityEl) return;
+        const visit = data.tanggal_kunjungan_rujukan || null;
+        const expiry = data.tanggal_akhir_rujukan || null;
+        const status = String(data.status_rujukan || '').toUpperCase();
+        const atReservation = String(data.status_rujukan_saat_reservasi || '').toUpperCase();
+        const message = data.pesan_rujukan || '';
+        const remaining = data.sisa_hari_rujukan;
+        const hasInfo = Boolean(visit || expiry || status || message);
+        const hasReferral = Boolean(data.norujukan || data.noRujukan || data.nomorrujukan);
+        const referralCard = document.getElementById('kontrol-rujukan-card');
+        if (referralCard) referralCard.style.display = (hasInfo || hasReferral) ? 'flex' : 'none';
+        const referralNumber = document.getElementById('kontrol-rujukan-nomor');
+        if (referralNumber) referralNumber.textContent = data.norujukan || data.noRujukan || data.nomorrujukan || '-';
+        const referralButton = document.getElementById('kontrol-rujukan-check');
+        if (referralButton) referralButton.disabled = !(data.nobpjs || data.nokartu || data.noKartu);
+        if (!hasInfo && !hasReferral) return;
+        if (referralVisitEl) referralVisitEl.textContent = formatReferralDate(visit);
+        if (referralExpiryEl) referralExpiryEl.textContent = formatReferralDate(expiry);
+        if (referralStatusEl) {
+            referralStatusEl.textContent = status ? status.replace(/_/g, ' ') : 'Belum dicek';
+            referralStatusEl.classList.toggle('is-active', status === 'AKTIF');
+            referralStatusEl.classList.toggle('is-expired', status === 'KEDALUWARSA');
+        }
+        if (referralRemainingEl) {
+            const days = remaining === null || remaining === undefined || remaining === '' ? null : Number(remaining);
+            referralRemainingEl.textContent = days === null || !Number.isFinite(days) ? ''
+                : days > 0 ? `Sisa ${days} hari` : days === 0 ? 'Hari terakhir masa berlaku' : 'Masa berlaku sudah berakhir';
+        }
+        if (referralAtReservationEl) referralAtReservationEl.textContent = atReservation ? 'Saat tanggal reservasi: ' + atReservation.replace(/_/g, ' ') : '';
+        if (referralMessageEl) referralMessageEl.textContent = message || '';
+    }
+
     function showAppointment(data) {
         if (!isUpcomingAppointment(data)) {
             showEmpty();
@@ -4321,6 +4465,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         window.nadiCurrentAppointment = data;
+        updateReferralValidity(data);
 
         const detailButton = document.getElementById('kontrol-detail-button');
 
@@ -4733,6 +4878,17 @@ document.addEventListener('DOMContentLoaded', function () {
                 || null;
 
             if (isUpcomingAppointment(appointmentData)) {
+                const old = window.nadiCurrentAppointment || {};
+                const oldRef = String(old.norujukan || '');
+                const newRef = String(appointmentData.norujukan || '');
+                if (oldRef && newRef && oldRef === newRef) {
+                    ['tanggal_kunjungan_rujukan', 'tanggal_akhir_rujukan',
+                     'sisa_hari_rujukan', 'status_rujukan',
+                     'status_rujukan_saat_reservasi', 'pesan_rujukan']
+                    .forEach(function (key) {
+                        if (appointmentData[key] === undefined) appointmentData[key] = old[key];
+                    });
+                }
                 showAppointment(appointmentData);
             } else {
                 showEmpty();
@@ -5524,4 +5680,87 @@ document.addEventListener('DOMContentLoaded', function () {
  }
 })();
 </script>
+{{-- Widget chat pasien berada di pojok kanan bawah dan menggunakan session('pasien'). --}}
+{{-- Nonaktifkan widget chat sementara tanpa menghapus implementasinya. --}}
+@if(false && Route::has('nadi.bantuan.index') && Route::has('nadi.bantuan.history'))
+    @includeIf('nadi-support.widget')
+@endif
+<script>
+/* Tombol Bantuan pada bottom navigation membuka widget tanpa pindah halaman.
+   Jika widget belum terpasang, tautan tetap mengarah ke halaman Bantuan. */
+(function () {
+    var help = document.getElementById('nadi-menu-help');
+    if (!help) return;
+    help.addEventListener('click', function (event) {
+        if (!window.NadiHelpWidget || typeof window.NadiHelpWidget.open !== 'function') return;
+        event.preventDefault();
+        window.NadiHelpWidget.open();
+    });
+})();
+</script>
+
+<script>
+/* Cek rujukan berdasarkan kartu BPJS pasien yang tersimpan di sesi Laravel. */
+document.addEventListener('DOMContentLoaded', function () {
+    const button = document.getElementById('kontrol-rujukan-check');
+    if (!button) return;
+    button.addEventListener('click', async function () {
+        const url = button.dataset.url;
+        if (!url || button.disabled) return;
+        const original = button.textContent;
+        const messageEl = document.getElementById('kontrol-rujukan-pesan');
+        const statusEl = document.getElementById('kontrol-rujukan-status');
+        button.disabled = true;
+        button.textContent = 'Memeriksa...';
+        if (messageEl) messageEl.textContent = 'Menghubungi layanan rujukan BPJS...';
+        try {
+            const response = await fetch(url, {
+                headers: { Accept:'application/json', 'X-Requested-With':'XMLHttpRequest' },
+                credentials: 'same-origin', cache: 'no-store'
+            });
+            const payload = await response.json();
+            if (!response.ok || !payload.success) {
+                throw new Error(payload.message || 'Pengecekan rujukan gagal.');
+            }
+            const d = payload.data || {};
+            const number = document.getElementById('kontrol-rujukan-nomor');
+            if (number) number.textContent = d.norujukan || '-';
+            const dateLabel = v => {
+                if (!v) return '-';
+                const date = new Date(String(v).slice(0,10)+'T00:00:00');
+                return Number.isNaN(date.getTime()) ? String(v) :
+                    date.toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'});
+            };
+            const visit = document.getElementById('kontrol-rujukan-kunjungan');
+            const expiry = document.getElementById('kontrol-rujukan-akhir');
+            const remaining = document.getElementById('kontrol-rujukan-sisa');
+            const atReservation = document.getElementById('kontrol-rujukan-saat-reservasi');
+            if (visit) visit.textContent = dateLabel(d.tanggal_kunjungan_rujukan);
+            if (expiry) expiry.textContent = dateLabel(d.tanggal_akhir_rujukan);
+            if (remaining) remaining.textContent = d.sisa_hari_rujukan == null ? '' :
+                (d.sisa_hari_rujukan > 0 ? `Sisa ${d.sisa_hari_rujukan} hari` :
+                 d.sisa_hari_rujukan === 0 ? 'Hari terakhir masa berlaku' : 'Masa berlaku sudah berakhir');
+            if (statusEl) {
+                statusEl.textContent = d.status_rujukan || 'Tidak tersedia';
+                statusEl.classList.toggle('is-active', d.status_rujukan === 'AKTIF');
+                statusEl.classList.toggle('is-expired', d.status_rujukan === 'KEDALUWARSA');
+            }
+            if (atReservation) atReservation.textContent = d.status_rujukan_saat_reservasi ?
+                'Saat tanggal reservasi: '+d.status_rujukan_saat_reservasi : '';
+            if (messageEl) messageEl.textContent = payload.message || '';
+            // Sinkronkan nilai agar refresh antrean tidak menghapus hasil pengecekan.
+            const current = window.nadiCurrentAppointment;
+            if (current && (!current.norujukan || current.norujukan === d.norujukan)) {
+                Object.assign(current, d);
+            }
+        } catch (error) {
+            if (messageEl) messageEl.textContent = error.message || 'Layanan BPJS gagal dihubungi.';
+        } finally {
+            button.disabled = false;
+            button.textContent = original;
+        }
+    });
+});
+</script>
+
 @endsection

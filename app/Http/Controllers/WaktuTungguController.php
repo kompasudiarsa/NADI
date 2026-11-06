@@ -634,13 +634,10 @@ class WaktuTungguController extends Controller
         )
     );
 
-    $jenisResep = match ($kodeJenisResep) {
-        'A' => 'Non Racikan',
-        'B' => 'Racikan',
-        default => $kodeJenisResep !== ''
-            ? $kodeJenisResep
-            : null,
-    };
+   $jenisResep = [
+    'A' => 'Non Racikan',
+    'B' => 'Racikan',
+][$kodeJenisResep] ?? ($kodeJenisResep !== '' ? $kodeJenisResep : null);
 
     /*
     |--------------------------------------------------------------------------
@@ -868,13 +865,10 @@ class WaktuTungguController extends Controller
                     )
                 );
 
-                $jenis = match ($kode) {
-                    'A' => 'Non Racikan',
-                    'B' => 'Racikan',
-                    default => $kode !== ''
-                        ? $kode
-                        : null,
-                };
+                $jenis = [
+    'A' => 'Non Racikan',
+    'B' => 'Racikan',
+][$kode] ?? ($kode !== '' ? $kode : null);
 
                 return [
                     'aanoantri' => data_get(
@@ -976,6 +970,14 @@ class WaktuTungguController extends Controller
             $reservation,
             'norujukan'
         ),
+
+        // Field masa berlaku rujukan dari API SIMRS; jangan hitung tanggal di Blade.
+        'tanggal_kunjungan_rujukan' => data_get($reservation, 'tanggal_kunjungan_rujukan'),
+        'tanggal_akhir_rujukan' => data_get($reservation, 'tanggal_akhir_rujukan'),
+        'sisa_hari_rujukan' => data_get($reservation, 'sisa_hari_rujukan'),
+        'status_rujukan' => data_get($reservation, 'status_rujukan'),
+        'status_rujukan_saat_reservasi' => data_get($reservation, 'status_rujukan_saat_reservasi'),
+        'pesan_rujukan' => data_get($reservation, 'pesan_rujukan'),
     ];
 }
 

@@ -17,7 +17,10 @@ return [
         'guard' => 'web',
         'passwords' => 'users',
     ],
-
+    'nadi_cs' => [
+        'driver' => 'session',
+        'provider' => 'nadi_cs_users',
+    ],
     /*
     |--------------------------------------------------------------------------
     | Authentication Guards
@@ -40,6 +43,10 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+         'nadi_cs' => [
+        'driver' => 'session',
+        'provider' => 'nadi_cs_users',
+    ],
     ],
 
     /*
@@ -64,7 +71,10 @@ return [
             'driver' => 'eloquent',
             'model' => App\Models\User::class,
         ],
-
+'nadi_cs_users' => [
+    'driver' => 'eloquent',
+    'model' => App\Models\NadiCsUser::class,
+],
         // 'users' => [
         //     'driver' => 'database',
         //     'table' => 'users',
