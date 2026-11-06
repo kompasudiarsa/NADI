@@ -1682,6 +1682,53 @@
         }
     }
 
+
+    /* Pratinjau dokumen hasil lab (tanpa tombol unduh / cetak di UI NADI). */
+    .lab-pdf-section {
+        margin-top: 16px;
+        padding: 14px;
+        border: 1px solid #dfe8f2;
+        border-radius: 16px;
+        background: #f8fbff;
+    }
+    .lab-pdf-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 12px;
+    }
+    .lab-pdf-readonly {
+        display: inline-flex;
+        align-items: center;
+        border: 1px solid #b7ecd1;
+        border-radius: 99px;
+        padding: 7px 12px;
+        background: #ecfdf5;
+        color: #047857;
+        font-size: 11px;
+        font-weight: 800;
+    }
+    .lab-pdf-section iframe {
+        display: block;
+        width: 100%;
+        height: min(80vh, 1000px);
+        min-height: 440px;
+        border: 1px solid #dfe8f2;
+        border-radius: 12px;
+        background: #fff;
+    }
+    .lab-pdf-note {
+        margin-top: 10px;
+        font-size: 11px;
+        line-height: 1.5;
+        color: #64748b;
+    }
+    @media (max-width: 600px) {
+        .lab-pdf-section { padding: 10px; }
+        .lab-pdf-section iframe { height: 70vh; min-height: 480px; }
+    }
 </style>
 
 @php
@@ -1721,7 +1768,7 @@
     $success = (bool) data_get(
         $result,
         'success',
-        false
+        data_get($result, 'status', false)
     );
 
     $payload = data_get(
@@ -1736,11 +1783,9 @@
         $noOrder ?? '-'
     );
 
-    $noBilling = data_get(
-        $payload,
-        'nobilling',
-        '-'
-    );
+    $noBilling = data_get($payload, 'nobilling.lno', data_get($payload, 'nobilling', '-'));
+    $pdfPath = trim((string) data_get($payload, 'nobilling.pdf_url', ''));
+    $hasLabPdf = $pdfPath !== '';
 
     /*
      * Patologi Klinik:
@@ -1839,6 +1884,19 @@
         } catch (\Throwable $e) {
             $birthDateLabel = (string) $birthDate;
         }
+    }
+
+    // Token terenkripsi, berlaku 10 menit, dan terikat ke sesi pasien.
+    // PDF hanya dapat diakses melalui controller yang memvalidasi token.
+    $pdfViewUrl = null;
+    if ($success && $hasLabPdf && session()->has('pasien')) {
+        $pdfToken = \Illuminate\Support\Facades\Crypt::encryptString(json_encode([
+            'path' => $pdfPath,
+            'noorder' => (string) $responseNoOrder,
+            'sid' => hash('sha256', session()->getId()),
+            'exp' => now()->addMinutes(10)->timestamp,
+        ]));
+        $pdfViewUrl = route('laboratory.pdf.proxy', ['token' => $pdfToken]);
     }
 
     $routeOrUrl = static function ($routeName, $fallback) {
@@ -2085,6 +2143,31 @@
                     'Data hasil laboratorium berhasil diambil.'
                 ) }}
             </div>
+
+            @if($pdfViewUrl)
+                <section class="lab-pdf-section" aria-label="Pratinjau hasil laboratorium">
+                    <div class="lab-pdf-heading">
+                        <div>
+                            <div class="result-title">Dokumen Hasil Laboratorium</div>
+                            <div class="lab-meta">Nomor billing: {{ $labText($noBilling) }}</div>
+                        </div>
+                        <span class="lab-pdf-readonly" aria-label="Hanya untuk dibaca">Hanya Lihat</span>
+                    </div>
+
+                    {{-- Toolbar PDF disembunyikan jika penampil PDF browser mendukung parameter ini.
+                         Ini bukan pengamanan anti-unduh / anti-cetak yang mutlak. --}}
+                    <iframe
+                        src="{{ $pdfViewUrl }}#toolbar=0&navpanes=0&scrollbar=1&view=FitH"
+                        title="Pratinjau dokumen hasil laboratorium"
+                        loading="lazy"
+                        referrerpolicy="same-origin">
+                    </iframe>
+                    <p class="lab-pdf-note">
+                        Dokumen ini ditampilkan untuk dibaca melalui NADI.
+                        Simpan dan bagikan informasi kesehatan Anda dengan bijak.
+                    </p>
+                </section>
+            @endif
 
             {{-- =====================================================
                  LAB - PATOLOGI KLINIK
@@ -2366,13 +2449,11 @@
 
                 @empty
 
-                    <div
-                        class="lab-alert is-error"
-                        style="margin-top:18px;"
-                    >
-                        Data hasil pemeriksaan
-                        Patologi Klinik belum tersedia.
-                    </div>
+                    @if(! $pdfViewUrl)
+                        <div class="lab-alert is-warning" style="margin-top:18px;">
+                            Data hasil pemeriksaan Patologi Klinik belum tersedia.
+                        </div>
+                    @endif
 
                 @endforelse
 
@@ -3208,6 +3289,10 @@
                  ===================================================== --}}
             @elseif($isPatologiAnatomi)
 
+                {{-- PDF tersedia: hasil Patologi Anatomi sudah ditampilkan di atas,
+                     sehingga panel detail yang berulang tidak ditampilkan. --}}
+                @if(! $pdfViewUrl)
+
                 @php
                     /*
                      * Struktur final API Patologi Anatomi
@@ -3375,6 +3460,8 @@
                     </div>
 
                 </div>
+
+                @endif
 
             {{-- =====================================================
                  JENIS LAB TIDAK DIKENALI
